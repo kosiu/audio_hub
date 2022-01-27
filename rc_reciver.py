@@ -2,7 +2,6 @@
 
 # Ideas to test:
 #    move to vls package (faster?)
-#    move to alsaaudio for mixer package (faster?)
 #    check coexistence of bloototh and vlc
 #    dbus for bluetooth
 #    gpio read leds
@@ -11,7 +10,7 @@
 #    REST api
 #    send ir events
 
-import asyncio, evdev, subprocess
+import asyncio, evdev, subprocess, alsaaudio
 
 SIGQUIT = 3
 keys = evdev.ecodes
@@ -25,8 +24,9 @@ state = 0 # off
 # 11...13   aux1, aux2, aux3 => PC,TV,in
 #      14   bluetooth
 
-# Global player
+# Global player + mixer
 player = None
+mixer = alsaaudio.Mixer('Headphone')
 
 def ir_key_pressed(key):
     print(f'Remote key pressed: {keys.KEY[key]}')
@@ -64,9 +64,7 @@ def ir_key_hold(key):
 def play_stream(new_state,stream=None):
     global player
     switch_state(new_state)
-    if new_state == 14:
-        player = subprocess.Popen('bluealsa-aplay 00:00:00:00:00:00'.split())
-    elif stream!=None:
+    if stream!=None:
         player = subprocess.Popen("cvlc -A alsa".split()+[stream])
 
 def switch_state(new_state):
@@ -77,10 +75,12 @@ def switch_state(new_state):
     state=new_state
 
 def volume_down():
-    subprocess.run(['amixer','-q','set','Headphone','100-'])
+    vol = mixer.getvolume()[0]-2
+    mixer.setvolume(0 if vol < 0 else vol)
 
 def volume_up():
-    subprocess.run(['amixer','-q','set','Headphone','100+'])
+    vol = mixer.getvolume()[0]+2
+    mixer.setvolume(100 if vol>100 else vol)
 
 def find_ir_device():
     ir = None
