@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import asyncio, evdev, vlc, alsaaudio, subprocess
+import asyncio, evdev, vlc, alsaaudio, subprocess,time
+time.sleep(60*2)
 keys = evdev.ecodes # shortcut for key codes
 
 # -----------------------------------------------------------------------------
 # Global variables (objects):
-mixer  = alsaaudio.Mixer('Headphone')
+mixer  = alsaaudio.Mixer('Speaker')
 player = vlc.MediaListPlayer()
 # -----------------------------------------------------------------------------
 
@@ -19,8 +20,8 @@ def radio_stations():
 
 def ir_key_pressed(key):
     print(f'Remote key pressed: {keys.KEY[key]}')
-    if   key == keys.KEY_VOLUMEDOWN: change_volume(-1)
-    elif key == keys.KEY_VOLUMEUP:   change_volume(+1)
+    if   key == keys.KEY_VOLUMEDOWN: change_volume(-3)
+    elif key == keys.KEY_VOLUMEUP:   change_volume(+3)
     elif key == keys.KEY_0: player.play_item_at_index(0) # Radio 357
     elif key == keys.KEY_1: player.play_item_at_index(1) # Radio Nowy Świat
     elif key == keys.KEY_2: player.play_item_at_index(2) # Radio FIP
