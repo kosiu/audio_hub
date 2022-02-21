@@ -1,0 +1,15 @@
+[Unit]
+Description=Audio hub for internet radio and bluetooth
+Requires=bluetooth.target
+Requires=sound.target
+Requires=bluealsa.service
+Requires=lircd.service
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/local/bin/audio_hub.py
+
+[Install]
+WantedBy=multi-user.target
+
