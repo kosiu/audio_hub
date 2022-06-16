@@ -1,14 +1,25 @@
+# Implemented
+
+ 1. Create bluetooth sink (hidden non discoverable) pairing only manualy. I don't like to expose
+ 1. Create alsamixer device
+ 1. Create vlc player with radio station media list
+ 1. Create main async event loop to listen only for infrared keys (for now)
+ 1. In reponce to keys (hold or press) send signals to mixer or vlc
+
 # TODO:
 
- 1. gpio in python
+ 1. Incorporate gpio (test included)
+ 1. Asyncio for gpio
+ 1. Write short how-to on pairing unpairing new device
+
 
 # Ideas to test:
 
- 1. asyncio for gpio
- 2. dbus for bluetooth (possible with async interface?)
- 3. gpio led display
- 4. REST api or different mqtt?
- 5. send ir events (needed?)
+ 1. reboot every 2 days?
+ 1. dbus for bluetooth (possible with async interface?)
+ 1. gpio led display to show current status of radio or input
+ 1. REST api or different mqtt?
+ 1. send ir events (needed?)
 
 # Auto-pair agent
 
@@ -18,34 +29,3 @@
 # mplayera (vlc is better for that)
     mplayer -prefer-ipv4 -cache 512 -cache-min 60 https://stream.rcs.revma.com/ye5kghkgcm0uv
 
-# GPIO notes
- 
-Standart GPIO for Raspberry PI examples. I wounder if there is async version of it?
-
-```python
-import time
-import RPi.GPIO as GPIO
-
-in_btn = 37
-ch_btn = 35
-a_led = 33
-b_led = 40
-c_led = 38
-
-GPIO.setmode(GPIO.BOARD)
-print(GPIO.getmode()) # should be 10
-
-leds = [a_led, b_led, c_led]
-for led in leds:
-    GPIO.setup(led, GPIO.IN)
-
-GPIO.setup(in_btn, GPIO.OUT)
-
-
-GPIO.output(37,GPIO.LOW);
-time.sleep(.07);             # 0.07 shortest possible
-GPIO.output(37,GPIO.HIGH);
-time.sleep(.6);              # 0.6 shortest possible
-print([GPIO.input(led) for led in leds])
-
-```
