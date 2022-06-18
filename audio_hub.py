@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import asyncio, evdev, vlc, alsaaudio, subprocess,time
-time.sleep(60*2)
+import asyncio, evdev, vlc, alsaaudio, subprocess, time, aux
+time.sleep(60)
 keys = evdev.ecodes # shortcut for key codes
 
 # -----------------------------------------------------------------------------
@@ -18,7 +18,7 @@ def radio_stations():
     radios.add_media('http://ant-kat-01.cdn.eurozet.pl:8604')
     return radios
 
-def ir_key_pressed(key):
+async def ir_key_pressed(key):
     print(f'Remote key pressed: {keys.KEY[key]}')
     if   key == keys.KEY_VOLUMEDOWN: change_volume(-3)
     elif key == keys.KEY_VOLUMEUP:   change_volume(+3)
@@ -29,11 +29,11 @@ def ir_key_pressed(key):
     elif key == keys.KEY_4: player.play_item_at_index(4) # Antyradio
     elif key == keys.KEY_5: player.stop()
     elif key == keys.KEY_6: player.stop()
-    elif key == keys.KEY_7: player.stop()
-    elif key == keys.KEY_8: player.stop()
+    elif key == keys.KEY_7: asyncio.create_task(aux.set_aux(0))
+    elif key == keys.KEY_8: asyncio.create_task(aux.set_aux(1))
     elif key == keys.KEY_9: player.stop()
 
-def ir_key_hold(key):
+async def ir_key_hold(key):
     print(f'Remote key hold:    {keys.KEY[key]}')
     if   key == keys.KEY_VOLUMEDOWN: change_volume(-5)
     elif key == keys.KEY_VOLUMEUP:   change_volume(+5)
@@ -59,8 +59,8 @@ async def ir_loop(ir):
             KEY_PRESSED  = 0
             KEY_RELEASED = 1
             KEY_HOLD     = 2
-            if event.value == KEY_RELEASED: ir_key_pressed(event.code)
-            elif event.value   == KEY_HOLD: ir_key_hold(event.code)
+            if event.value == KEY_RELEASED: await ir_key_pressed(event.code)
+            elif event.value   == KEY_HOLD: await ir_key_hold(event.code)
 
 def main():
     baplay = subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])

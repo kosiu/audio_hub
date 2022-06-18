@@ -46,6 +46,7 @@ async def set_aux(aux):
     global aux_to_select
     if aux_to_select != -1:
         aux_to_select = aux
+        return
     else: 
         aux_to_select = aux
 
@@ -56,6 +57,7 @@ async def set_aux(aux):
         print("now: ", current_aux, "search: ", aux_to_select)
 
     print("OK")
+    with open('/dev/shm/aux','w') as f: f.write(str(current_aux))
     aux_to_select = -1
 
 # initialise during import
