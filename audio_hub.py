@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import asyncio, evdev, vlc, alsaaudio, subprocess, time, aux
-time.sleep(60)
+time.sleep(2*60) # TODO shoul be started after: alsaaudio, bluetooth, ir
 keys = evdev.ecodes # shortcut for key codes
 
 # -----------------------------------------------------------------------------
@@ -28,7 +28,7 @@ async def ir_key_pressed(key):
     elif key == keys.KEY_3: player.play_item_at_index(3) # RMF Classic
     elif key == keys.KEY_4: player.play_item_at_index(4) # Antyradio
     elif key == keys.KEY_5: player.stop()
-    elif key == keys.KEY_6: player.stop()
+    elif key == keys.KEY_6: asyncio.create_task(aux.surround_toggle())
     elif key == keys.KEY_7: asyncio.create_task(aux.set_aux(0))
     elif key == keys.KEY_8: asyncio.create_task(aux.set_aux(1))
     elif key == keys.KEY_9: player.stop()
@@ -63,6 +63,7 @@ async def ir_loop(ir):
             elif event.value   == KEY_HOLD: await ir_key_hold(event.code)
 
 def main():
+    aux.init()
     baplay = subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])
     player.set_media_list(radio_stations())
 

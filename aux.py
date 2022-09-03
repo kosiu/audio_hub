@@ -1,10 +1,6 @@
-import time # only for init() function
+import time        # only for init() function
 import asyncio
 import RPi.GPIO as gpio
-# Ment to be run: exec(open("gpio_test.py").read())
-# asyncio.run(select_input(0))
-# await select_input(0)
-# asyncio.create_task(select_input(0))
 
 # constants
 input_btn = 37
@@ -35,6 +31,10 @@ def get_aux():
     elif gpio.input(leds[2])==0: return 3 # Coaxial
     return 0                              # Stereo IN
 
+async def surround_toggle():
+    gpio.output(surround_btn, gpio.LOW)
+    await asyncio.sleep(.8)           # 0.08 time of push
+    gpio.output(surround_btn, gpio.HIGH)
 
 async def next_aux():
     gpio.output(input_btn, gpio.LOW)
@@ -59,7 +59,4 @@ async def set_aux(aux):
     print("OK")
     with open('/dev/shm/aux','w') as f: f.write(str(current_aux))
     aux_to_select = -1
-
-# initialise during import
-init()
 
