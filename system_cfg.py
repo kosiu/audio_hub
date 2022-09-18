@@ -4,9 +4,11 @@ from pathlib import Path
 
 def main():
     src = [
-        Path('/etc/systemd/system/audio_hub.service'),
-        Path('/etc/rc_keymaps/protocols/custom.toml'),
-        Path('/etc/rc_keymaps/protocols/lg.toml'),
+        #Path('/etc/systemd/system/audio_hub.service'),
+        Path('/etc/rc_keymaps/custom.toml'),
+        Path('/etc/rc_keymaps/lg.toml'),
+        Path('/etc/rc_maps.cfg'),
+        Path('/etc/udev/rules.d/99-gpio.rules'),
         ]
     dest = Path('system_files')
     for f in src:

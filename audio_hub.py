@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-import asyncio, evdev, vlc, alsaaudio, subprocess, time, aux
-time.sleep(2*60) # TODO shoul be started after: alsaaudio, bluetooth, ir
+import asyncio, subprocess, time # official python packages
+import evdev, vlc, alsaaudio     # pip installed
+import aux                       # local scripts that also require: OPi.GPIO
+#time.sleep(2*60) # TODO shoul be started after: alsaaudio, bluetooth, ir
 keys = evdev.ecodes # shortcut for key codes
 
 # -----------------------------------------------------------------------------
 # Global variables (objects):
-mixer  = alsaaudio.Mixer('Speaker')
+mixer  = alsaaudio.Mixer('Master')
 player = vlc.MediaListPlayer()
 # -----------------------------------------------------------------------------
 
@@ -48,7 +50,7 @@ def find_ir_device():
     ir = None
     devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
     for device in devices:
-        if device.name == 'gpio_ir_recv': ir = device
+        if device.name == 'sunxi-ir': ir = device
         else: device.close()
     if ir == None: raise Exception("Can't find IR device")
     return ir
@@ -67,8 +69,7 @@ def main():
     baplay = subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])
     player.set_media_list(radio_stations())
 
-    asyncio.ensure_future(ir_loop(find_ir_device()))
-    asyncio.get_event_loop().run_forever()
+    asyncio.run(ir_loop(find_ir_device()))
 
 if __name__ == '__main__':
     main()

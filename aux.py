@@ -1,26 +1,48 @@
-import time        # only for init() function
 import asyncio
-import RPi.GPIO as gpio
+import OPi.GPIO as gpio
+
+pin_map = {
+#  1: 3.3V
+#  2: 5V     connected
+   3: 122,
+#  4: 5V
+   5: 121,
+#  6: GND
+   7: 118,
+   8: 354,
+#  9: GND
+  10: 355,
+  11: 120,
+  12: 114,
+  13: 119,
+# 14: GND
+  15: 362,
+  16: 111,
+# 17: 3.3V
+  18: 112,
+  19: 229, # led
+# 20: GND
+  21: 230, # btn stereo
+  22: 117,
+  23: 228, # btn input
+  24: 227, # led
+# 25: GND    conected
+  26: 360} # led
 
 # constants
-input_btn = 37
-surround_btn = 35
-leds = [33, 40, 38] # led1, led2, led3
+input_btn = 23
+surround_btn = 21
+leds = [19, 26, 24] # led1, led2, led3
 
-# GLOBAL variable in case 2 select_input tasks are launch
+# GLOBAL state variable in case 2 select_input tasks are launch
 aux_to_select = -1
 
 def init():
-    gpio.setmode(gpio.BOARD)
+    gpio.setmode(pin_map)
     for led in leds:
-        gpio.setup(led, gpio.IN, pull_up_down=gpio.PUD_DOWN)
-    gpio.setup(input_btn,    gpio.OUT)
-    gpio.setup(surround_btn, gpio.OUT)
-    # somehow surround button has to be pushed
-    # otherwise the input switch dosn't work
-    gpio.output(surround_btn, gpio.LOW)
-    time.sleep(1)
-    gpio.output(surround_btn, gpio.HIGH)
+        gpio.setup(led, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
+    gpio.setup(input_btn,    gpio.OUT, initial=gpio.HIGH)
+    gpio.setup(surround_btn, gpio.OUT, initial=gpio.HIGH)
  
 def end():
     gpio.cleanup()

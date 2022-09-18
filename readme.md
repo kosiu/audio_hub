@@ -7,7 +7,12 @@
  1. Aux device 5.1 dac and audio switch controlled through gpio with async tasks
  1. In responce to keys (hold or press) send signals to mixer, vlc, aux
 
+# Porting TODO:
+ 1. Start script
+ 1. Reduced volume on startup
+
 # TODO:
+ 1. RC Buttons also switch input
  1. Remote - more buttons (doc folder?)
  1. Write short how-to on pairing unpairing new device
 
