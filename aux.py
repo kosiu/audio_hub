@@ -1,7 +1,7 @@
 import asyncio
 import OPi.GPIO as gpio
 
-pin_map = {
+pin_map = { # key: header pin number, value: gpio kernel number
 #  1: 3.3V
 #  2: 5V     connected
    3: 122,
@@ -20,14 +20,14 @@ pin_map = {
   16: 111,
 # 17: 3.3V
   18: 112,
-  19: 229, # led
+  19: 229, # led 1 fiber optic 1
 # 20: GND
-  21: 230, # btn stereo
+  21: 230, # button 5.1 / stereo
   22: 117,
-  23: 228, # btn input
-  24: 227, # led
+  23: 228, # button input selector
+  24: 227, # led 3 digital coaxial
 # 25: GND    conected
-  26: 360} # led
+  26: 360} # led 2 fiber optic 2
 
 # constants
 input_btn = 23

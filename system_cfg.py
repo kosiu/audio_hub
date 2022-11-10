@@ -4,7 +4,8 @@ from pathlib import Path
 
 def main():
     src = [
-        #Path('/etc/systemd/system/audio_hub.service'),
+        Path('/etc/default/bluez-alsa'),
+        Path('/etc/systemd/system/audio_hub.service'),
         Path('/etc/rc_keymaps/custom.toml'),
         Path('/etc/rc_keymaps/lg.toml'),
         Path('/etc/rc_maps.cfg'),

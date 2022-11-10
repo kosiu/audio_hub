@@ -5,21 +5,21 @@ protocol = "nec"
 #variant = "necx"
 
 [protocols.scancodes]
-0x2fe01 = "KEY_5"
 0x2fe10 = "KEY_VOLUMEDOWN"
 0x2fe09 = "KEY_VOLUMEUP"
-0x2fe02 = "KEY_6"
 0x2fe11 = "KEY_RED"
 0x2fe16 = "KEY_GREEN"
 0x2fe0a = "KEY_YELLOW"
 0x2fe12 = "KEY_BLUE"
-0x2fe06 = "KEY_6"
 0x2fe0e = "KEY_UP"
-0x2fe0d = "KEY_7"
-0x2fe15 = "KEY_3"            # RMF Clasic
 0x2fe0c = "KEY_DOWN"
-0x2fe07 = "KEY_4"            # AntyRadio
 0x2fe19 = "KEY_0"            # Radio 357
 0x2fe08 = "KEY_1"            # Radio Nowy Świat
 0x2fe14 = "KEY_2"            # Radio FIP
+0x2fe15 = "KEY_3"            # RMF Clasic
+0x2fe07 = "KEY_4"            # AntyRadio
+0x2fe01 = "KEY_5"
+0x2fe02 = "KEY_6"
+0x2fe06 = "KEY_6"
+0x2fe0d = "KEY_7"
 
