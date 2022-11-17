@@ -5,17 +5,15 @@
  1. Main async event loop. Listen only infrared keys (for now)
  1. Aux device 5.1 dac and audio switch controlled through gpio with async tasks
  1. In responce to keys (hold or press) send signals to mixer, vlc, aux
+ 1. Reboot every day at 3 a.m.
 
 # TODO:
- 1. Remote - more buttons (doc folder?)
- 1. Bloototh pairing from remote controller
- 1. Write short how-to on pairing unpairing new device
+ 1. Create files in /dev/shm/ at start
+ 1. Bloototh pairing from remote controller (long hold bluetooth button)
 
 # Ideas to test:
- 1. reboot every 2 days?
  1. dbus for bluetooth (possible with async interface?)
  1. gpio led display to show current status of radio or input
  1. REST api or different mqtt?
  1. send ir events (needed?)
-
 

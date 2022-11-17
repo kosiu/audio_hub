@@ -48,10 +48,12 @@ def end():
     gpio.cleanup()
 
 def get_aux():
-    if   gpio.input(leds[0])==0: return 1 # Optical 1
-    elif gpio.input(leds[1])==0: return 2 # Optical 2
-    elif gpio.input(leds[2])==0: return 3 # Coaxial
-    return 0                              # Stereo IN
+    i = 0
+    if   gpio.input(leds[0])==0: i = 1 # Optical 1
+    elif gpio.input(leds[1])==0: i = 2 # Optical 2
+    elif gpio.input(leds[2])==0: i = 3 # Coaxial
+    with open('/dev/shm/aux','w') as f: f.write(str(i))
+    return i                           # Stereo IN
 
 async def surround_toggle():
     gpio.output(surround_btn, gpio.LOW)
@@ -79,6 +81,5 @@ async def set_aux(aux):
         print("now: ", current_aux, "search: ", aux_to_select)
 
     print("OK")
-    with open('/dev/shm/aux','w') as f: f.write(str(current_aux))
     aux_to_select = -1
 

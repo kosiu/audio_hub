@@ -1,25 +1,62 @@
-
 [[protocols]]
 name = "custom"
 protocol = "nec"
 #variant = "necx"
 
 [protocols.scancodes]
-0x2fe10 = "KEY_VOLUMEDOWN"
-0x2fe09 = "KEY_VOLUMEUP"
-0x2fe11 = "KEY_RED"
-0x2fe16 = "KEY_GREEN"
-0x2fe0a = "KEY_YELLOW"
-0x2fe12 = "KEY_BLUE"
-0x2fe0e = "KEY_UP"
-0x2fe0c = "KEY_DOWN"
-0x2fe19 = "KEY_0"            # Radio 357
-0x2fe08 = "KEY_1"            # Radio Nowy Świat
-0x2fe14 = "KEY_2"            # Radio FIP
-0x2fe15 = "KEY_3"            # RMF Clasic
-0x2fe07 = "KEY_4"            # AntyRadio
-0x2fe01 = "KEY_5"
-0x2fe02 = "KEY_6"
-0x2fe06 = "KEY_6"
-0x2fe0d = "KEY_7"
+0x2fe10 = "KEY_VOLUMEDOWN" # 
+0x2fe09 = "KEY_VOLUMEUP"   # 
+0x2fe11 = "KEY_RED"        # Reboot
+0x2fe16 = "KEY_GREEN"      # 
+0x2fe0a = "KEY_YELLOW"     # 
+0x2fe12 = "KEY_BLUE"       # 5.1 / Stereo
+0x2fe0e = "KEY_UP"         # 
+0x2fe0c = "KEY_DOWN"       # 
+0x2fe19 = "KEY_0"          # Radio 357
+0x2fe08 = "KEY_1"          # Radio Nowy Świat
+0x2fe14 = "KEY_2"          # Radio FIP
+0x2fe15 = "KEY_3"          # RMF Clasic
+0x2fe07 = "KEY_4"          # AntyRadio
+# no key  "KEY_5"
+0x2fe02 = "KEY_6"          # in0 bluetooth
+0x2fe06 = "KEY_7"          # in1 PC
+0x2fe0d = "KEY_8"          # in2 TV
+0x2fe01 = "KEY_9"          # in3 power_off
+
+# .----------------------.
+# |                  (9) |
+# | (v-)       (v+)  (6) |
+# | (red)(gre)(yel)(blu) |
+# |  (7)    (up)     (8) |
+# |     (3) (dn)  (4)    |
+# |  (0)     (1)     (2) |
+#  \                    /
+#   `-.              .-'
+#      `------------'
+
+# Hardware - you can't modify it:
+#
+# key code starts with: 0x2fe__
+# .------------------.
+# |              01  |
+# |  10      09  02  |
+# |  11  16  0a  12  |
+# |  06    0e    0d  |
+# |     15 0c 07     |
+# |  19    08    14  |
+#  \                /
+#   `-.          .-'
+#      `--------'
+
+# on hold repeat: O - slow, X - fast
+# .-----------------.
+# |              X  |
+# |  O       O   X  |
+# |  X   X   X   X  |
+# |  X     O     X  |
+# |    O   X   O    |
+# |  X     O     X  |
+#  \               /
+#   `-.         .-'
+#      `-------'
 

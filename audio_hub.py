@@ -1,8 +1,8 @@
-#!/usr/bin/env -S python3 -u 
-import asyncio, subprocess       # official python packages
-import evdev, vlc, alsaaudio     # pip installed
-import aux                       # local scripts that also require: OPi.GPIO
-keys = evdev.ecodes # shortcut for key codes
+#!/usr/bin/env -S python3 -u
+import asyncio, subprocess,datetime  # official python packages
+import evdev, vlc, alsaaudio         # pip installed
+import aux                           # local scripts that also require: OPi.GPIO
+keys = evdev.ecodes                  # shortcut for key codes
 
 # -----------------------------------------------------------------------------
 # Global variables (objects):
@@ -28,11 +28,13 @@ def ir_key_pressed(key):
     elif key == keys.KEY_2: set_radio(2)  # Radio FIP
     elif key == keys.KEY_3: set_radio(3)  # RMF Classic
     elif key == keys.KEY_4: set_radio(4)  # Antyradio
-    elif key == keys.KEY_5: player.stop()
-    elif key == keys.KEY_6: player.stop()
-    elif key == keys.KEY_7: set_aux(1)    # PC Fiber optic input 1
-    elif key == keys.KEY_8: asyncio.create_task(aux.surround_toggle()) 
-    elif key == keys.KEY_9: player.stop()
+    elif key == keys.KEY_5: pass
+    elif key == keys.KEY_6: set_aux(0)    # PI stereo input 0 (bluetooth)
+    elif key == keys.KEY_7: set_aux(1)    # PC fiber optic input 1
+    elif key == keys.KEY_8: set_aux(2)    # TV fiber optic input 2
+    elif key == keys.KEY_9: set_aux(3)    # OFF coaxial digital input
+    elif key == keys.KEY_BLUE: asyncio.create_task(aux.surround_toggle())
+    elif key == keys.KEY_RED:  subprocess.Popen('reboot')
 
 def ir_key_hold(key):
     print(f'Remote key hold:    {keys.KEY[key]}')
@@ -47,10 +49,12 @@ def change_volume(step):
 def set_radio(channel):
     asyncio.create_task(aux.set_aux(0))
     player.play_item_at_index(channel)
+    with open('/dev/shm/state','w') as f: f.write(str(channel))
 
 def set_aux(ext_in):
     player.stop()
     asyncio.create_task(aux.set_aux(ext_in))
+    with open('/dev/shm/state','w') as f: f.write(chr(65+ext_in))
 
 # -----------------------------------------------------------------------------
 def find_ir_device():
@@ -64,6 +68,7 @@ def find_ir_device():
     return ir
 
 async def ir_loop(ir):
+    asyncio.create_task(shedule_reboot())
     async for event in ir.async_read_loop():
         if event.type == keys.EV_KEY:
             KEY_PRESSED  = 0
@@ -71,6 +76,16 @@ async def ir_loop(ir):
             KEY_HOLD     = 2
             if event.value == KEY_RELEASED: ir_key_pressed(event.code)
             elif event.value   == KEY_HOLD: ir_key_hold(event.code)
+
+async def shedule_reboot():
+    now = datetime.datetime.now()
+    at3 = (now + datetime.timedelta(days=1)).replace(hour=3,minute=0,second=0)
+    await asyncio.sleep((at3-now).seconds)
+    pospond = 10
+    while player.is_playing() and (pospond > 0):
+        pospond -= 1
+        await asyncio.sleep(3600)
+    subprocess.Popen('reboot')
 
 def main():
     aux.init()

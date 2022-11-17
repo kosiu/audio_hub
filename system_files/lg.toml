@@ -1,4 +1,3 @@
-
 [[protocols]]
 name = "LG"
 protocol = "nec"
@@ -41,9 +40,9 @@ protocol = "nec"
 #0x40a = "I/II"
 0x409 = "KEY_MUTE"
 0x472 = "KEY_RED"
-#0x471 = "green/STOP"
-#0x463 = "yellow/PLAY"
-#0x461 = "blu/PAUSE"
+0x471 = "KEY_GREEN"   # "green/STOP"
+0x463 = "KEY_YELLOW"  # "yellow/PLAY"
+0x461 = "KEY_BLUE"    # "blu/PAUSE"
 #0x445 = "Q.MENU"
 #0x421 = "T.OPT/<<"
 0x439 = "KEY_SUBTITLE"
