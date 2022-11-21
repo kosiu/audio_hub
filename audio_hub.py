@@ -1,7 +1,8 @@
 #!/usr/bin/env -S python3 -u
 import asyncio, subprocess,datetime  # official python packages
 import evdev, vlc, alsaaudio         # pip installed
-import aux                           # local scripts that also require: OPi.GPIO
+import aux                           # local file require: OPi.GPIO
+import dbus_bluez                    # local file require: dbus_next
 keys = evdev.ecodes                  # shortcut for key codes
 
 # -----------------------------------------------------------------------------
@@ -33,8 +34,9 @@ def ir_key_pressed(key):
     elif key == keys.KEY_7: set_aux(1)    # PC fiber optic input 1
     elif key == keys.KEY_8: set_aux(2)    # TV fiber optic input 2
     elif key == keys.KEY_9: set_aux(3)    # OFF coaxial digital input
-    elif key == keys.KEY_BLUE: asyncio.create_task(aux.surround_toggle())
-    elif key == keys.KEY_RED:  subprocess.Popen('reboot')
+    elif key == keys.KEY_BLUE:  asyncio.create_task(dbus_bluez.enable_pairing())
+    elif key == keys.KEY_GREEN: asyncio.create_task(aux.surround_toggle())
+    elif key == keys.KEY_RED:   subprocess.Popen('reboot')
 
 def ir_key_hold(key):
     print(f'Remote key hold:    {keys.KEY[key]}')
@@ -68,6 +70,7 @@ def find_ir_device():
     return ir
 
 async def ir_loop(ir):
+    asyncio.create_task(dbus_bluez.init())
     asyncio.create_task(shedule_reboot())
     async for event in ir.async_read_loop():
         if event.type == keys.EV_KEY:
@@ -88,8 +91,7 @@ async def shedule_reboot():
     subprocess.Popen('reboot')
 
 def main():
-    aux.init()
-    baplay = subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])
+    with open('/dev/shm/state','w') as f: f.write(chr(65+aux.init()))
     player.set_media_list(radio_stations())
     asyncio.run(ir_loop(find_ir_device()))
 

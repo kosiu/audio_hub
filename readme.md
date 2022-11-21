@@ -1,5 +1,5 @@
 # Implemented
- 1. Bluetooth sink (hidden non discoverable) but pairing only manualy. I don't like to expose it
+ 1. Bluetooth sink (hidden non discoverable)
  1. Alsamixer device
  1. Vlc player with radio station media list
  1. Main async event loop. Listen only infrared keys (for now)
@@ -8,12 +8,9 @@
  1. Reboot every day at 3 a.m.
 
 # TODO:
- 1. Create files in /dev/shm/ at start
- 1. Bloototh pairing from remote controller (long hold bluetooth button)
+ 1. long button press event to pair bluetooth
 
-# Ideas to test:
- 1. dbus for bluetooth (possible with async interface?)
- 1. gpio led display to show current status of radio or input
- 1. REST api or different mqtt?
- 1. send ir events (needed?)
+# Ideas to explore:
+ 1. gpio led or oled display to show current status of radio or input
+ 1. API from outisde: rest, mqtt, dbus, ir-events?
 

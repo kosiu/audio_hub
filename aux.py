@@ -43,7 +43,8 @@ def init():
         gpio.setup(led, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
     gpio.setup(input_btn,    gpio.OUT, initial=gpio.HIGH)
     gpio.setup(surround_btn, gpio.OUT, initial=gpio.HIGH)
- 
+    return get_aux()
+
 def end():
     gpio.cleanup()
 
