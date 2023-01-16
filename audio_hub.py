@@ -1,5 +1,5 @@
 #!/usr/bin/env -S python3 -u
-import asyncio, subprocess,datetime  # official python packages
+import asyncio, subprocess,datetime,time # official python packages
 import evdev, vlc, alsaaudio         # pip installed
 import aux                           # local file require: OPi.GPIO
 import dbus_bluez                    # local file require: dbus_next
@@ -21,7 +21,7 @@ def radio_stations():
     return radios
 
 def ir_key_pressed(key):
-    print(f'Remote key pressed: {keys.KEY[key]}')
+    print(f'Remote key pressed:   {keys.KEY[key]}')
     if   key == keys.KEY_VOLUMEDOWN: change_volume(-3)
     elif key == keys.KEY_VOLUMEUP:   change_volume(+3)
     elif key == keys.KEY_0: set_radio(0)  # Radio 357
@@ -29,19 +29,23 @@ def ir_key_pressed(key):
     elif key == keys.KEY_2: set_radio(2)  # Radio FIP
     elif key == keys.KEY_3: set_radio(3)  # RMF Classic
     elif key == keys.KEY_4: set_radio(4)  # Antyradio
-    elif key == keys.KEY_5: pass
+    elif key == keys.KEY_5: pass # n.a. on small remote
     elif key == keys.KEY_6: set_aux(0)    # PI stereo input 0 (bluetooth)
     elif key == keys.KEY_7: set_aux(1)    # PC fiber optic input 1
     elif key == keys.KEY_8: set_aux(2)    # TV fiber optic input 2
     elif key == keys.KEY_9: set_aux(3)    # OFF coaxial digital input
-    elif key == keys.KEY_BLUE:  asyncio.create_task(dbus_bluez.enable_pairing())
+    elif key == keys.KEY_BLUE:  pass
     elif key == keys.KEY_GREEN: asyncio.create_task(aux.surround_toggle())
     elif key == keys.KEY_RED:   subprocess.Popen('reboot')
 
 def ir_key_hold(key):
-    print(f'Remote key hold:    {keys.KEY[key]}')
+    print(f'Remote key hold:      {keys.KEY[key]}')
     if   key == keys.KEY_VOLUMEDOWN: change_volume(-5)
     elif key == keys.KEY_VOLUMEUP:   change_volume(+5)
+
+def ir_key_long(key):
+    print(f'Remote key long hold: {keys.KEY[key]}')
+    if key == keys.KEY_6:  asyncio.create_task(dbus_bluez.enable_pairing())
 
 def change_volume(step):
     old_vol = mixer.getvolume()[0]
@@ -69,6 +73,27 @@ def find_ir_device():
     if ir == None: raise Exception("Can't find IR device")
     return ir
 
+def test_long_press(key):
+    '''Due to buggy RC transmiter (no hold option) hack to detect long press buttons'''
+    now = time.time()
+    if not hasattr(test_long_press, 'done'):
+        test_long_press.done        = False
+        test_long_press.last_key    = keys.KEY_POWER
+        test_long_press.first_press = now
+        test_long_press.last_press  = now
+    if key == test_long_press.last_key:
+        if (now - test_long_press.last_press) < 0.5:
+            test_long_press.last_press = now
+            if (now - test_long_press.first_press) > 5:
+                if test_long_press.done == False:
+                    test_long_press.done = True
+                    ir_key_long(key)
+            return
+    test_long_press.done        = False
+    test_long_press.first_press = now
+    test_long_press.last_press  = now
+    test_long_press.last_key    = key
+
 async def ir_loop(ir):
     asyncio.create_task(dbus_bluez.init())
     asyncio.create_task(shedule_reboot())
@@ -77,12 +102,13 @@ async def ir_loop(ir):
             KEY_PRESSED  = 0
             KEY_RELEASED = 1
             KEY_HOLD     = 2
+            test_long_press(event.code)
             if event.value == KEY_RELEASED: ir_key_pressed(event.code)
-            elif event.value   == KEY_HOLD: ir_key_hold(event.code)
+            elif event.value ==   KEY_HOLD: ir_key_hold(event.code)
 
 async def shedule_reboot():
     now = datetime.datetime.now()
-    at3 = (now + datetime.timedelta(days=1)).replace(hour=3,minute=0,second=0)
+    at3 = (now + datetime.timedelta(days=7)).replace(hour=3,minute=0,second=0)
     await asyncio.sleep((at3-now).seconds)
     pospond = 10
     while player.is_playing() and (pospond > 0):
@@ -92,6 +118,10 @@ async def shedule_reboot():
 
 def main():
     with open('/dev/shm/state','w') as f: f.write(chr(65+aux.init()))
+    with open('/sys/devices/platform/leds/leds/green-led/brightness','w') as f: f.write('0')
+    with open('/sys/devices/platform/leds/leds/green-led/trigger','w')    as f: f.write('rc-feedback')
+    with open('/sys/devices/platform/leds/leds/red-led/brightness','w')   as f: f.write('0')
+    with open('/sys/devices/platform/leds/leds/red-led/trigger','w')      as f: f.write('mmc0')
     player.set_media_list(radio_stations())
     asyncio.run(ir_loop(find_ir_device()))
 

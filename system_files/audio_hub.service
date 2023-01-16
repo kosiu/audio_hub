@@ -6,6 +6,7 @@ After=bluez-alsa.service
 Type=simple
 User=kosiu
 ExecStart=/usr/local/bin/audio_hub.py
+KillSignal=SIGINT
 
 [Install]
 WantedBy=multi-user.target
