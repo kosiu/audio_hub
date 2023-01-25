@@ -1,17 +1,38 @@
 #!/usr/bin/env -S python3 -u
 import asyncio, subprocess,datetime,time # official python packages
 import evdev, vlc, alsaaudio         # pip installed
-import aux                           # local file require: OPi.GPIO
+import devices                       # local file require: OPi.GPIO
 import dbus_bluez                    # local file require: dbus_next
+import http_server
+import threading
 keys = evdev.ecodes                  # shortcut for key codes
 
-volumes = [0, 18, 19, 20, 21, 22, 24, 25, 27, 28, 30, 32, 33, 35, 38, 40, 42, 45, 47, 50, 53, 56, 60, 63, 67, 71, 75, 79, 84, 89, 94, 100]
-# import bisect
-# value = volumes[index]
-# index = bisect.bisect[value]-1
+class State:
+    def __init__(self):
+        self.input = 'off'
+        self.volume = 5 # to be replaced
+        self.update_ui = asyncio.Event()
+
+    def set_action(self, action):
+        self.input = action
+        self.update_ui.set()
+
+    def get_input(self):
+        return self.input
+
+    def set_volume(self, volume):
+        self.volume=volume # to be replaced
+        self.update_ui.set()
+
+    def get_volume(self):
+        return self.volume # to be replaced
+
+    def get_ui_state(self):
+        return dict(input=self.input,volume=self.volume) # volume to be replaced
 
 # -----------------------------------------------------------------------------
 # Global variables (objects):
+s = State()
 mixer  = alsaaudio.Mixer('Master')
 player = vlc.MediaListPlayer(vlc.Instance('-A alsa'))
 # -----------------------------------------------------------------------------
@@ -42,7 +63,7 @@ def ir_key_pressed(key):
     elif key == keys.KEY_RED:    pass
     elif key == keys.KEY_GREEN:  pass
     elif key == keys.KEY_YELLOW: pass
-    elif key == keys.KEY_BLUE:   asyncio.create_task(aux.surround_toggle())
+    elif key == keys.KEY_BLUE:   asyncio.create_task(devices.surround_toggle())
     elif key == keys.KEY_UP:     pass
     elif key == keys.KEY_DOWN:   pass
 
@@ -62,14 +83,12 @@ def change_volume(step):
     if old_vol != new_vol: mixer.setvolume(new_vol)
 
 def set_radio(channel):
-    asyncio.create_task(aux.set_aux(0))
+    asyncio.create_task(devices.set_aux(0))
     player.play_item_at_index(channel)
-    with open('/dev/shm/state','w') as f: f.write(str(channel))
 
 def set_aux(ext_in):
     player.stop()
-    asyncio.create_task(aux.set_aux(ext_in))
-    with open('/dev/shm/state','w') as f: f.write(chr(65+ext_in))
+    asyncio.create_task(devices.set_aux(ext_in))
 
 # -----------------------------------------------------------------------------
 def find_ir_device():
@@ -126,12 +145,14 @@ async def shedule_reboot():
     subprocess.Popen('reboot')
 
 def main():
-    with open('/dev/shm/state','w') as f: f.write(chr(65+aux.init()))
     with open('/sys/devices/platform/leds/leds/green-led/brightness','w') as f: f.write('0')
     with open('/sys/devices/platform/leds/leds/green-led/trigger','w')    as f: f.write('rc-feedback')
     with open('/sys/devices/platform/leds/leds/red-led/brightness','w')   as f: f.write('0')
     with open('/sys/devices/platform/leds/leds/red-led/trigger','w')      as f: f.write('mmc0')
+    devices.init()
     player.set_media_list(radio_stations())
+    server = threading.Thread(target=http_server.run, args=(s,))
+    server.start()
     asyncio.run(ir_loop(find_ir_device()))
 
 if __name__ == '__main__':

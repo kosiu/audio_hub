@@ -8,12 +8,12 @@
  1. Reboot ones per week at 3 a.m.
 
 # TODO:
- 1. API from outisde like rest + server send events which means: FastAPI + SSE
-    https://devdojo.com/bobbyiliev/how-to-use-server-sent-events-sse-with-fastapi
+ 1. Integrate http server
+    1. volume + new mixer (good start)
+    1. with new state system
 
 # Ideas to explore:
  1. Refactor ideas:
-    1. states + led together in module (re-think concept -- maybe more after API)
     1. long press + other buttons in class or module maybe also leds
     1. radios in json
 1. display to show current status of radio or input
@@ -31,22 +31,29 @@ KEY_0 ... 9     <- Radios
 ```
 
 # New states concepts:
- - 0 ... 9 -- radio channels
- - A -- out 0
- - B -- out 1
- - C -- out 2
- - D -- out 3
- - E -- pairing
-or
+Input:
  - TV
  - PC
+ - BT
  - OFF
  - 0 ... 9 radios
+
+Actions:
+ - all above
+ - toggle surround
+ - reboot
+ - BT pair
+
+Not yeat clasified:
  - bluetooth pairing
  - bluetooth not connected
  - bluetooth connected
  - bluetooth play
  - bluetooth pause
 
-pip install uvicorn fastapi
-pip install sse-starlette
+
+Installation
+------------
+
+pip install uvicorn fastapi sse-starlette
+

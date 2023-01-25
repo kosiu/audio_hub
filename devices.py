@@ -1,5 +1,29 @@
 import asyncio
 import OPi.GPIO as gpio
+import alsaaudio
+
+class volume:
+    volumes = [0, 18, 19, 20, 21, 22, 24, 25, 27, 28, 30, 32, 33, 35, 38, 40,
+            42, 45, 47, 50, 53, 56, 60, 63, 67, 71, 75, 79, 84, 89, 94, 100]
+
+    # import bisect
+    # value = volumes[index]
+    # index = bisect.bisect[value]-1
+
+    def __init__():
+        self.mixer = alsaaudio.Mixer('Master')
+
+    def change(step):
+        old_vol = self.mixer.getvolume()[0]
+        new_vol = max(min(100, old_vol + step), 0)
+        if old_vol != new_vol: self.mixer.setvolume(new_vol)
+
+    def set(value):
+        pass
+
+    def get():
+        pass
+
 
 pin_map = { # key: header pin number, value: gpio kernel number
 #  1: 3.3V
