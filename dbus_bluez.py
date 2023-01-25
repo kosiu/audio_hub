@@ -10,17 +10,25 @@ async def init():
     global bus
     bus = await dbus_next.aio.MessageBus(bus_type=dbus_next.BusType.SYSTEM).connect()
 
-    tree  = await create_interface('/','org.freedesktop.DBus.ObjectManager')
+    tree = await create_interface('/','org.freedesktop.DBus.ObjectManager')
     tree.on_interfaces_added(interfaces_added)
 
+    monitor = await create_interface('/org/bluez/hci0','org.freedesktop.DBus.Properties')
+    monitor.on_properties_changed(properties_changed)
+
     global adapter
-    adapter  = await create_interface('/org/bluez/hci0','org.bluez.Adapter1')
+    adapter = await create_interface('/org/bluez/hci0','org.bluez.Adapter1')
 
 async def create_interface(path,interface):
     introspection = await bus.introspect('org.bluez', path)
     #print(introspection.tostring())
     proxy_object  = bus.get_proxy_object('org.bluez', path, introspection)
     return proxy_object.get_interface(interface)
+
+def properties_changed(iface,value,_):
+    if iface != 'org.bluez.Adapter1': return
+    if 'Discoverable' not in value: return
+    asyncio.create_task(blink_red(value['Discoverable'].value))
 
 def interfaces_added(name,value):
     if not name.startswith('/org/bluez/hci0/dev_'): return
@@ -39,6 +47,16 @@ async def enable_pairing():
     await adapter.set_discoverable_timeout(180)
     await adapter.set_pairable(True)
     await adapter.set_pairable_timeout(180)
+
+async def blink_red(blink):
+    blink_red.blink = blink
+    with open('/sys/devices/platform/leds/leds/red-led/trigger','w') as f: f.write('none')
+    while blink_red.blink:
+        with open('/sys/devices/platform/leds/leds/red-led/brightness','w') as f: f.write('1')
+        await asyncio.sleep(.2)
+        with open('/sys/devices/platform/leds/leds/red-led/brightness','w') as f: f.write('0')
+        await asyncio.sleep(.5)
+    with open('/sys/devices/platform/leds/leds/red-led/trigger','w') as f: f.write('mmc0')
 
 async def test():
     await init()

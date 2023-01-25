@@ -6,7 +6,7 @@ protocol = "nec"
 [protocols.scancodes]
 0x2fe10 = "KEY_VOLUMEDOWN" # 
 0x2fe09 = "KEY_VOLUMEUP"   # 
-0x2fe11 = "KEY_RED"        # Reboot
+0x2fe11 = "KEY_RED"        #
 0x2fe16 = "KEY_GREEN"      # 
 0x2fe0a = "KEY_YELLOW"     # 
 0x2fe12 = "KEY_BLUE"       # 5.1 / Stereo
