@@ -3,7 +3,9 @@ import subprocess
 import dbus_next
 import asyncio
 
-async def init():
+async def init(led_in):
+    global led
+    led = led_in
     subprocess.Popen(['bt-agent','--capability=NoInputNoOutput'])
     subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])
 
@@ -28,7 +30,7 @@ async def create_interface(path,interface):
 def properties_changed(iface,value,_):
     if iface != 'org.bluez.Adapter1': return
     if 'Discoverable' not in value: return
-    asyncio.create_task(blink_red(value['Discoverable'].value))
+    asyncio.create_task(led.blink(value['Discoverable'].value))
 
 def interfaces_added(name,value):
     if not name.startswith('/org/bluez/hci0/dev_'): return
@@ -48,16 +50,6 @@ async def enable_pairing():
     await adapter.set_pairable(True)
     await adapter.set_pairable_timeout(180)
 
-async def blink_red(blink):
-    blink_red.blink = blink
-    with open('/sys/devices/platform/leds/leds/red-led/trigger','w') as f: f.write('none')
-    while blink_red.blink:
-        with open('/sys/devices/platform/leds/leds/red-led/brightness','w') as f: f.write('1')
-        await asyncio.sleep(.2)
-        with open('/sys/devices/platform/leds/leds/red-led/brightness','w') as f: f.write('0')
-        await asyncio.sleep(.5)
-    with open('/sys/devices/platform/leds/leds/red-led/trigger','w') as f: f.write('mmc0')
-
 async def test():
     await init()
     await enable_pairing()
@@ -66,4 +58,5 @@ async def test():
 
 if __name__ == '__main__':
     asyncio.run(test())
+    # test requires mockup of led
 

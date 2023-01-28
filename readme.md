@@ -6,17 +6,17 @@
  1. Aux device 5.1 dac and audio switch controlled through gpio with async tasks
  1. In responce to keys (hold or press) send signals to mixer, vlc, aux
  1. Reboot ones per week at 3 a.m.
+ 1. Web interface and API
 
 # TODO:
- 1. Integrate http server
-    1. volume + new mixer (good start)
-    1. with new state system
+ 1. Restart vlc insteed of reboot
 
 # Ideas to explore:
  1. Refactor ideas:
-    1. long press + other buttons in class or module maybe also leds
-    1. radios in json
-1. display to show current status of radio or input
+    1. Radios in json
+    1. Move IR to class - questionable
+    1. Move gpio to class - also questionable
+1. Display to show current status of radio or input
 
 # New buttons in remote:
 ```
@@ -39,7 +39,7 @@ Input:
  - 0 ... 9 radios
 
 Actions:
- - all above
+ - all above +
  - toggle surround
  - reboot
  - BT pair
@@ -48,8 +48,8 @@ Not yeat clasified:
  - bluetooth pairing
  - bluetooth not connected
  - bluetooth connected
- - bluetooth play
- - bluetooth pause
+ - bluetooth playing
+ - radio x playing
 
 
 Installation

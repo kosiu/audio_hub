@@ -1,11 +1,14 @@
 [Unit]
 Description=Audio hub for internet radio and bluetooth
-After=bluez-alsa.service
+After=network-online.target
+Requires=network-online.target
+
 
 [Service]
 Type=simple
 User=kosiu
-ExecStart=/usr/local/bin/audio_hub.py
+ExecStart=/home/kosiu/audio_hub/audio_hub.py
+WorkingDirectory=/home/kosiu/audio_hub/
 KillSignal=SIGINT
 
 [Install]

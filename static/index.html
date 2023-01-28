@@ -24,7 +24,7 @@
         <div class="col-auto"><label for="volume"><i class="bi-volume-down text-primary" style="font-size: 2rem"></i></label></div>
         <div class="col-auto"><label for="volume"><i class="bi-volume-up   text-primary" style="font-size: 2rem"></i></label></div>
       </div>
-      <input type="range" class="form-range" name="volume" id="volume" max="32" oninput="send_volume(this);">
+      <input type="range" class="form-range" name="volume" id="volume" step="3" oninput="send_volume(this);">
       <div class="row justify-content-between">
         <div class="col-auto">
           <input class="btn-check" type="radio" name="state" id="state_pc" value="pc" onclick="send_action(this);">
@@ -35,19 +35,19 @@
           <label class="btn btn-outline-primary" for="state_tv"><i class="bi-tv"></i> TV</label>
         </div>
       </div>
-        <input class="btn-check" type="radio" name="state" id="radio0" value="0" onclick="send_action(this);">
+        <input class="btn-check" type="radio" name="state" id="radio0" value=0 onclick="send_action(this);">
         <label class="btn btn-outline-primary" for="radio0"><i class="bi-broadcast-pin"></i> Radio 357</label>
 
-        <input class="btn-check" type="radio" name="state" id="radio1" value="1" onclick="send_action(this);">
+        <input class="btn-check" type="radio" name="state" id="radio1" value=1 onclick="send_action(this);">
         <label class="btn btn-outline-primary" for="radio1"><i class="bi-broadcast-pin"></i> Radio Nowy Świat</label>
 
-        <input class="btn-check" type="radio" name="state" id="radio2" value="2" onclick="send_action(this);">
+        <input class="btn-check" type="radio" name="state" id="radio2" value=2 onclick="send_action(this);">
         <label class="btn btn-outline-primary" for="radio2"><i class="bi-broadcast-pin"></i> Radio FIP</label>
 
-        <input class="btn-check" type="radio" name="state" id="radio3" value="3" onclick="send_action(this);">
+        <input class="btn-check" type="radio" name="state" id="radio3" value=3 onclick="send_action(this);">
         <label class="btn btn-outline-primary" for="radio3"><i class="bi-broadcast-pin"></i> RMF Clasic</label>
 
-        <input class="btn-check" type="radio" name="state" id="radio4" value="4" onclick="send_action(this);">
+        <input class="btn-check" type="radio" name="state" id="radio4" value=4 onclick="send_action(this);">
         <label class="btn btn-outline-primary" for="radio4"><i class="bi-broadcast-pin"></i> Antyradio</label>
 
         <hr/>

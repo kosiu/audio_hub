@@ -1,28 +1,34 @@
 import asyncio
 import OPi.GPIO as gpio
-import alsaaudio
 
-class volume:
-    volumes = [0, 18, 19, 20, 21, 22, 24, 25, 27, 28, 30, 32, 33, 35, 38, 40,
-            42, 45, 47, 50, 53, 56, 60, 63, 67, 71, 75, 79, 84, 89, 94, 100]
-
-    # import bisect
-    # value = volumes[index]
-    # index = bisect.bisect[value]-1
-
-    def __init__():
-        self.mixer = alsaaudio.Mixer('Master')
-
-    def change(step):
-        old_vol = self.mixer.getvolume()[0]
-        new_vol = max(min(100, old_vol + step), 0)
-        if old_vol != new_vol: self.mixer.setvolume(new_vol)
-
-    def set(value):
-        pass
-
-    def get():
-        pass
+class System_Led:
+    def __init__(self, color, default_option, default_value):
+        self.color = color
+        self.option = default_option
+        self.value = default_value
+        self.off()
+        self.set(default_option, default_value)
+    def set(self, option,value):
+        with open(f'/sys/devices/platform/leds/leds/{self.color}-led/{option}','w') as f:
+            f.write(value)
+    def off(self):
+        self.set('trigger','none')
+        self.set("brightness", "0") 
+    def on(self):
+        self.set('trigger','none')
+        self.set("brightness", "1")
+    def default(self):
+        self.off()
+        self.set(self.option, self.value)
+    async def blink(self, blink, on_time=.2, off_time=.5):
+        self.is_blinking = blink
+        self.set('trigger','none')
+        while self.is_blinking:
+            self.set("brightness", "1")
+            await asyncio.sleep(on_time)
+            self.set("brightness", "0")
+            await asyncio.sleep(off_time)
+        self.default()
 
 
 pin_map = { # key: header pin number, value: gpio kernel number
@@ -58,6 +64,8 @@ input_btn = 23
 surround_btn = 21
 leds = [19, 26, 24] # led1, led2, led3
 
+dac_inputs = ['bt', 'pc', 'tv', 'off']
+
 # GLOBAL state variable in case 2 select_input tasks are launch
 aux_to_select = -1
 
@@ -92,6 +100,7 @@ async def next_aux():
     await asyncio.sleep(.9)           # 0.8 time of responce
 
 async def set_aux(aux):
+    aux = dac_inputs.index(aux)
     global aux_to_select
     if aux_to_select != -1:
         aux_to_select = aux

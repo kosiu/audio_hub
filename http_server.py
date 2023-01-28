@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import time
+import threading
 import json
 import uvicorn
 import fastapi
@@ -34,12 +36,21 @@ async def State_update(request: fastapi.Request):
             yield response
     return EventSourceResponse(event_generator())
 
+def thread():
+    time.sleep(10)
+    uvicorn.run("http_server:app", host="192.168.1.18", port=8000, log_level="warning")
+
 def run(state_in):
     global state
     state = state_in
-    uvicorn.run("http_server:app", host="192.168.1.18", port=8000, log_level="warning")
+    server = threading.Thread(target=thread)
+    server.start()
 
 if __name__ == "__main__":
     pass
     # for stand alone testing require mockup of the: "state" class
+    # state.set_action(str)
+    # state.set_volume(int)
+    # state.get_ui_state()
+    # state.update_ui
 
