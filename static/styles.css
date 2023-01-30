@@ -1,6 +1,10 @@
 .main {
     max-width: 460px;
-    margin: 4rem auto;
+    margin: 1rem auto;
+}
+
+hr {
+    border:none
 }
 
 .btn {
@@ -16,7 +20,10 @@ i[class^="bi-"] {
     padding-right: .5em;
 }
 
-.form-range {
-    padding-bottom: 3ex;
-}
+.row {
+    margin-bottom: 1ex;
+  }
 
+.form-switch {
+    margin-top: 1ex;
+}

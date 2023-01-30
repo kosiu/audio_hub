@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-import time
-import threading
-import json
+#!/usr/bin/env -S python3 -u
+import asyncio, time, threading, json
 import uvicorn
 import fastapi
 from fastapi.staticfiles import StaticFiles
@@ -46,11 +44,31 @@ def run(state_in):
     server = threading.Thread(target=thread)
     server.start()
 
+class State:
+    '''Mockup prepared for testing Web UI in production is overvriten by corct one'''
+    def __init__(self):
+        self.update_ui = asyncio.Event()
+        self.state = dict(input='off',volume=10)
+        self.dac_inputs = ['bt','pc','tv','off']
+        self.do_nothing = ['stereo','reboot','pair']
+        self.update_ui.set()
+
+    def set_action(self, action):
+        print(f'Action: {action}')
+        if type(action) == int or action.isdigit(): self.state['input'] = int(action)
+        elif action in self.dac_inputs: self.state['input'] = action
+        elif action in self.do_nothing: pass
+        else: print(f'Unknown action: {action}')
+        self.update_ui.set()
+
+    def set_volume(self, volume):
+        self.state['volume']=volume
+        self.update_ui.set()
+
+    def get_ui_state(self): return self.state
+state = State()
+
 if __name__ == "__main__":
+    # to run test: uvicorn http_server:app --reload-include '*, static/*'
     pass
-    # for stand alone testing require mockup of the: "state" class
-    # state.set_action(str)
-    # state.set_volume(int)
-    # state.get_ui_state()
-    # state.update_ui
 
