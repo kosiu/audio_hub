@@ -1,5 +1,5 @@
 #!/usr/bin/env -S python3 -u
-import asyncio, subprocess, datetime, time # official python packages
+import asyncio, subprocess, datetime, time, json, signal, os # official python packages
 import evdev, vlc, alsaaudio         # pip installed
 import devices                       # local file require: OPi.GPIO
 import dbus_bluez                    # local file require: dbus_next
@@ -8,31 +8,22 @@ import http_server
 def main():
     global s
     s = State()
-    http_server.run(s)
-    asyncio.run(ir_loop(find_ir_device()))
+    asyncio.run(ir_loop())
 
 class State:
-    radio_list = [
-        ['Radio 357',        'https://stream.rcs.revma.com/ye5kghkgcm0uv'],
-        ['Radio Nowy Świat', 'https://stream.nowyswiat.online/aac'],
-        ['Radio FIP',        'http://icecast.radiofrance.fr/fip-midfi.aac'],
-        ['RMF Clasic',       'http://195.150.20.242:8000/rmf_classic'],
-        ['Antyradio',        'http://an03.cdn.eurozet.pl/ant-waw.mp3']]
-
     def __init__(self):
-        self.player = vlc.MediaListPlayer(vlc.Instance('-A alsa'))
-        radios = vlc.MediaList(self.player.get_instance())
-        for _, stream in State.radio_list: radios.add_media(stream)
-        self.player.set_media_list(radios)
-        self.mixer = alsaaudio.Mixer('Master')
+        signal.signal(signal.SIGINT, shutdown_app)
+        self.__init_radios()
+        self.mixer     = alsaaudio.Mixer('Master')
         self.update_ui = asyncio.Event()
         self.red_led   = devices.System_Led('red',  'trigger','mmc0')
         self.green_led = devices.System_Led('green','trigger','rc-feedback')
         devices.init()
+        http_server.run_thread(self)
 
     def async_init(self):
         asyncio.create_task(dbus_bluez.init(self.red_led))
-        asyncio.create_task(shedule_reboot())
+        asyncio.create_task(self.__shedule_player_restart())
         self.set_action('off')
 
     def set_action(self, action):
@@ -40,7 +31,7 @@ class State:
         if type(action) == int or action.isdigit(): self.__set_radio(int(action))
         elif action in devices.dac_inputs: self.__set_dac_in(action)
         elif action == 'stereo': asyncio.create_task(devices.surround_toggle())
-        elif action == 'reboot': subprocess.Popen('reboot')
+        elif action == 'reboot': self.__restart_vlc() #self.player.stop(); subprocess.Popen('reboot')
         elif action == 'pair':   asyncio.create_task(dbus_bluez.enable_pairing())
         else: print(f'Unknown action: {action}')
 
@@ -68,6 +59,35 @@ class State:
         asyncio.create_task(devices.set_aux(ext_in))
         self.input = ext_in
         self.update_ui.set()
+
+    def __init_radios(self):
+        self.vlc = vlc.Instance('-A alsa')
+        self.player = vlc.MediaListPlayer(self.vlc)
+        self.radios = vlc.MediaList(self.vlc)
+        with open('radios.json') as json_file: radio_list = json.load(json_file)
+        for _, stream in radio_list: self.radios.add_media(stream)
+        self.player.set_media_list(self.radios)
+
+    async def __shedule_player_restart(self):
+        now = datetime.datetime.now()
+        at3 = (now + datetime.timedelta(days=1)).replace(hour=3,minute=0,second=0)
+        await asyncio.sleep((at3-now).total_seconds())
+        pospond = 10
+        while self.player.is_playing() and (pospond > 0):
+            pospond -= 1
+            await asyncio.sleep(3600)
+        self.__restart_vlc()
+
+    def __restart_vlc(self):
+        print('Restarting VLC')
+        self.player.stop()
+        self.radios.release()
+        self.player.get_media_player().release()
+        self.player.release()
+        for i in range(10): self.vlc.release()
+        time.sleep(10)
+        self.__init_radios()
+
 
 # IR Device + Event Loop ----------------------------------------------------
 
@@ -131,8 +151,9 @@ def test_long_press(key):
     test_long_press.last_press  = now
     test_long_press.last_key    = key
 
-async def ir_loop(ir):
+async def ir_loop():
     s.async_init()
+    ir = find_ir_device()
     async for event in ir.async_read_loop():
         if event.type == keys.EV_KEY:
             KEY_PRESSED  = 0
@@ -144,15 +165,7 @@ async def ir_loop(ir):
 
 #--------------------------------------------------------------------------------
 
-async def shedule_reboot():
-    now = datetime.datetime.now()
-    at3 = (now + datetime.timedelta(days=7)).replace(hour=3,minute=0,second=0)
-    await asyncio.sleep((at3-now).total_seconds())
-    pospond = 10
-    while player.is_playing() and (pospond > 0):
-        pospond -= 1
-        await asyncio.sleep(3600)
-    subprocess.Popen('reboot')
+def shutdown_app(signum, frame): os._exit(0)
 
 if __name__ == '__main__':
     main()

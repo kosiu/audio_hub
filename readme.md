@@ -9,14 +9,17 @@
  1. Web interface and API
 
 # TODO:
- 1. Restart vlc insteed of reboot
+ 1. Current approach with forcing VLC exit dosn't work.
+ 1. Implement restart of the full software stack maybe it will be better.
+ 1. Button restart device insteed VLC
+ 1. VLC shouldn't wait when signal recived
 
 # Ideas to explore:
- 1. Refactor ideas:
-    1. Radios in json
-    1. Move IR to class - questionable
-    1. Move gpio to class - also questionable
-1. Display to show current status of radio or input
+ 1. Questionable ideas to refactor:
+    1. Move IR to class
+    1. Move gpio to class
+ 1. Web edit radios
+ 1. Web edit bt devices
 
 # New buttons in remote:
 ```
@@ -31,29 +34,31 @@ KEY_0 ... 9     <- Radios
 ```
 
 # New states concepts:
-Input:
- - TV
- - PC
- - BT
- - OFF
+Actions:
+ - tv
+ - pc
+ - bt
+ - off
  - 0 ... 9 radios
 
 Actions:
  - all above +
- - toggle surround
+ - stereo
  - reboot
- - BT pair
+ - bt pair
 
 Not yeat clasified:
- - bluetooth pairing
- - bluetooth not connected
- - bluetooth connected
- - bluetooth playing
+ - bt pairing
+ - bt idle
+ - bt connected
+ - bt playing
  - radio x playing
 
 
 Installation
 ------------
 
+pip install OPi.GPIO dbus-next
+pip install evdev python-vlc pyalsaaudio
 pip install uvicorn fastapi sse-starlette
 

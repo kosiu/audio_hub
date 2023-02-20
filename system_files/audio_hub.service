@@ -9,7 +9,6 @@ Type=simple
 User=kosiu
 ExecStart=/home/kosiu/audio_hub/audio_hub.py
 WorkingDirectory=/home/kosiu/audio_hub/
-KillSignal=SIGINT
 
 [Install]
 WantedBy=multi-user.target

@@ -50,13 +50,15 @@ async def enable_pairing():
     await adapter.set_pairable(True)
     await adapter.set_pairable_timeout(180)
 
-async def test():
-    await init()
+async def test(led):
+    await init(led)
     await enable_pairing()
     print('Waiting...')
     await bus.wait_for_disconnect()
 
 if __name__ == '__main__':
-    asyncio.run(test())
-    # test requires mockup of led
+    class Led: # mockup for test
+        async def blink(self, blink_on): print(f'Blink on: {blink_on}')
+    led = Led()
+    asyncio.run(test(led))
 

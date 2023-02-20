@@ -1,6 +1,4 @@
-function send_action(action) {fetch('/set?action='+action.value)}
-function send_volume(volume) {fetch('/set?volume='+volume.value)}
-
+// Pure UI functions (theme + show more)
 function set_initial_theme() {
     var theme = localStorage.getItem('theme');
     if (theme == null) {
@@ -11,9 +9,10 @@ function set_initial_theme() {
 };
 set_initial_theme();
 
-function set_ui(data){
-    document.main.volume.value = data.volume;
-    document.main.state.value  = data.input;   
+function dark_theme(btn){
+    var theme = (btn.checked == true) ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-bs-theme', theme)
+    localStorage.setItem('theme',theme);
 };
 
 function more(btn){
@@ -24,15 +23,18 @@ function more(btn){
         (hidden_element.clientHeight == 0 && btn.checked)){
             new bootstrap.Collapse('#hidden_part')
     }
-      
 }
 
-function dark_theme(btn){
-    var theme = (btn.checked == true) ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-bs-theme', theme)
-    localStorage.setItem('theme',theme);
+// Comunication with server functions ------------------------------
+function send_action(action) {fetch('/set?action='+action.value)}
+function send_volume(volume) {fetch('/set?volume='+volume.value)}
+
+function set_ui(data){
+    document.main.volume.value = data.volume;
+    document.main.state.value  = data.input;
 };
 
+// Server Sent Events (SSE)
 const evtSource = new EventSource("/update");
 evtSource.addEventListener("update_ui", (event) => {set_ui(JSON.parse(event.data));});
 
@@ -43,3 +45,4 @@ document.addEventListener('DOMContentLoaded', () => {
     .then((response) => response.json())
     .then((data) => set_ui(data));
 }, false);
+

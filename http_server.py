@@ -38,7 +38,7 @@ def thread():
     time.sleep(10)
     uvicorn.run("http_server:app", host="192.168.1.18", port=8000, log_level="warning")
 
-def run(state_in):
+def run_thread(state_in):
     global state
     state = state_in
     server = threading.Thread(target=thread)
