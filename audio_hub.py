@@ -12,7 +12,8 @@ def main():
 
 class State:
     def __init__(self):
-        signal.signal(signal.SIGINT, shutdown_app)
+        signal.signal(signal.SIGINT,  shutdown_app)
+        signal.signal(signal.SIGTERM, shutdown_app)
         self.__init_radios()
         self.mixer     = alsaaudio.Mixer('Master')
         self.update_ui = asyncio.Event()
@@ -31,7 +32,7 @@ class State:
         if type(action) == int or action.isdigit(): self.__set_radio(int(action))
         elif action in devices.dac_inputs: self.__set_dac_in(action)
         elif action == 'stereo': asyncio.create_task(devices.surround_toggle())
-        elif action == 'reboot': self.__restart_vlc() #self.player.stop(); subprocess.Popen('reboot')
+        elif action == 'reboot': subprocess.Popen('reboot')
         elif action == 'pair':   asyncio.create_task(dbus_bluez.enable_pairing())
         else: print(f'Unknown action: {action}')
 
@@ -61,12 +62,12 @@ class State:
         self.update_ui.set()
 
     def __init_radios(self):
-        self.vlc = vlc.Instance('-A alsa')
-        self.player = vlc.MediaListPlayer(self.vlc)
-        self.radios = vlc.MediaList(self.vlc)
+        instance = vlc.Instance('-A alsa')
+        self.player = vlc.MediaListPlayer(instance)
+        radios = vlc.MediaList(instance)
         with open('radios.json') as json_file: radio_list = json.load(json_file)
-        for _, stream in radio_list: self.radios.add_media(stream)
-        self.player.set_media_list(self.radios)
+        for _, stream in radio_list: radios.add_media(stream)
+        self.player.set_media_list(radios)
 
     async def __shedule_player_restart(self):
         now = datetime.datetime.now()
@@ -76,17 +77,7 @@ class State:
         while self.player.is_playing() and (pospond > 0):
             pospond -= 1
             await asyncio.sleep(3600)
-        self.__restart_vlc()
-
-    def __restart_vlc(self):
-        print('Restarting VLC')
-        self.player.stop()
-        self.radios.release()
-        self.player.get_media_player().release()
-        self.player.release()
-        for i in range(10): self.vlc.release()
-        time.sleep(10)
-        self.__init_radios()
+        shutdown_app('restart')
 
 
 # IR Device + Event Loop ----------------------------------------------------
@@ -125,7 +116,7 @@ def find_ir_device():
     ir = None
     devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
     for device in devices:
-        if device.name == 'sunxi-ir': ir = device
+        if device.name == 'sunxi-ir': ir = device # 'HAOBO Technology USB Composite Device Keyboard'
         else: device.close()
     if ir == None: raise Exception("Can't find IR device")
     return ir
@@ -165,7 +156,10 @@ async def ir_loop():
 
 #--------------------------------------------------------------------------------
 
-def shutdown_app(signum, frame): os._exit(0)
+def shutdown_app(signum, frame=None):
+    exit_code = 0 if signum != 'restart' else 1
+    dbus_bluez.exit()
+    os._exit(exit_code)
 
 if __name__ == '__main__':
     main()

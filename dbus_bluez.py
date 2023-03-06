@@ -2,12 +2,17 @@
 import subprocess
 import dbus_next
 import asyncio
+import os
+import signal
 
 async def init(led_in):
     global led
     led = led_in
-    subprocess.Popen(['bt-agent','--capability=NoInputNoOutput'])
-    subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])
+
+    global agent
+    agent = subprocess.Popen(['bt-agent','--capability=NoInputNoOutput'])
+    global aplay
+    aplay = subprocess.Popen(['bluealsa-aplay','00:00:00:00:00:00'])
 
     global bus
     bus = await dbus_next.aio.MessageBus(bus_type=dbus_next.BusType.SYSTEM).connect()
@@ -20,6 +25,10 @@ async def init(led_in):
 
     global adapter
     adapter = await create_interface('/org/bluez/hci0','org.bluez.Adapter1')
+
+def exit():
+    agent.kill()
+    aplay.terminate()
 
 async def create_interface(path,interface):
     introspection = await bus.introspect('org.bluez', path)

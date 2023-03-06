@@ -62,3 +62,20 @@ pip install OPi.GPIO dbus-next
 pip install evdev python-vlc pyalsaaudio
 pip install uvicorn fastapi sse-starlette
 
+Log for new remote controller
+-----------------------------
+```
+usb 6-1: new full-speed USB device number 2 using ohci-platform
+usb 6-1: New USB device found, idVendor=4842, idProduct=0001, bcdDevice= 1.00
+usb 6-1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+usb 6-1: Product: USB Composite Device
+usb 6-1: Manufacturer: HAOBO Technology
+usb 6-1: SerialNumber: 1120030400060622
+input: HAOBO Technology USB Composite Device Keyboard as /devices/platform/soc/5311400.usb/usb6/6-1/6-1:1.2/0003:4842:0001.0001/input/input2
+hid-generic 0003:4842:0001.0001: input,hidraw0: USB HID v2.01 Keyboard [HAOBO Technology USB Composite Device] on usb-5311400.usb-1/input2
+input: HAOBO Technology USB Composite Device as /devices/platform/soc/5311400.usb/usb6/6-1/6-1:1.3/0003:4842:0001.0002/input/input3
+hid-generic 0003:4842:0001.0002: input,hidraw1: USB HID v2.01 Mouse [HAOBO Technology USB Composite Device] on usb-5311400.usb-1/input3
+hid-generic 0003:4842:0001.0003: hiddev96,hidraw2: USB HID v2.01 Device [HAOBO Technology USB Composite Device] on usb-5311400.usb-1/input4
+usbcore: registered new interface driver snd-usb-audio
+```
+

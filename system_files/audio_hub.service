@@ -7,8 +7,7 @@ Requires=network-online.target
 [Service]
 Type=simple
 User=kosiu
-ExecStart=/home/kosiu/audio_hub/audio_hub.py
-WorkingDirectory=/home/kosiu/audio_hub/
+ExecStart=/home/kosiu/audio_hub/audio_hub.sh
 
 [Install]
 WantedBy=multi-user.target
