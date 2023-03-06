@@ -9,10 +9,12 @@
  1. Web interface and API
 
 # TODO:
- 1. Current approach with forcing VLC exit dosn't work.
- 1. Implement restart of the full software stack maybe it will be better.
- 1. Button restart device insteed VLC
- 1. VLC shouldn't wait when signal recived
+ 1. Problem - usb device dissapears from time to time
+ 1. Investigate why after couple of days when device is not rebooted some VLC radios stop to work.
+    - [x] reboot every night helps but I don't like it
+    - [x] restart (hard) VLC doesn't help
+    - [x] restart Python aplication doesn't help
+    - [ ] maybe it's a problem of DNS? trying: sudo resolvectl flush-caches
 
 # Ideas to explore:
  1. Questionable ideas to refactor:
@@ -22,15 +24,42 @@
  1. Web edit bt devices
 
 # New buttons in remote:
+
 ```
-KEY_BLUETOOTH   <- DAC out 0 (long press - pair)
-KEY_PC          <- DAC out 1
-KEY_TV          <- DAC out 2
-KEY_POWER       <- DAC out 3 (long press - reboot)
-KEY_BASSBOOST   <- Surround / Stereo
-KEY_VOLUMEDOWN  <- volume +
-KEY_VOLUMEUP    <- volume -
-KEY_0 ... 9     <- Radios
+custom ir:      lg ir:     new radio rc:
+KEY_BLUETOOTH   (tv/radio) KEY_VOICECOMMAND  <- DAC out 0 (long press - pair)
+KEY_PC          (tv/pc)    KEY_PAGEUP        <- DAC out 1
+KEY_TV          (input)    KEY_PAGEDOWN      <- DAC out 2
+KEY_POWER                                    <- DAC out 3 (long press - reboot)
+KEY_MUTE (blue)                              <- Surround / Stereo -> better: KEY_BASSBOOST
+KEY_VOLUMEDOWN                               <- volume +
+KEY_VOLUMEUP                                 <- volume -
+KEY_0 ... 9                                  <- Radios
+```
+
+All keys on new remote left -> right, top -> down
+```
+KEY_POWER
+KEY_MUTE
+KEY_PAGEUP
+(mouse button is not en event)
+KEY_PAGEDOWN
+KEY_UP
+KEY_DOWN
+KEY_LEFT
+KEY_RIGHT
+KEY_SELECT
+KEY_BACK
+KEY_HOMEPAGE
+KEY_VOLUMEDOWN
+KEY_VOICECOMMAND
+KEY_VOLUMEUP
+KEY_PREVIOUSSONG
+KEY_PLAYPAUSE
+KEY_NEXTSONG
+KEY_0 ... 9
+KEY_BACKSPACE
+KEY_COMPOSE
 ```
 
 # New states concepts:
@@ -55,15 +84,15 @@ Not yeat clasified:
  - radio x playing
 
 
-Installation
-------------
-
+# Installation
+```
 pip install OPi.GPIO dbus-next
 pip install evdev python-vlc pyalsaaudio
 pip install uvicorn fastapi sse-starlette
+```
 
-Log for new remote controller
------------------------------
+# Dmesg for new remote controller
+It's add: Mouse, keyboard and soundcard
 ```
 usb 6-1: new full-speed USB device number 2 using ohci-platform
 usb 6-1: New USB device found, idVendor=4842, idProduct=0001, bcdDevice= 1.00
@@ -79,3 +108,24 @@ hid-generic 0003:4842:0001.0003: hiddev96,hidraw2: USB HID v2.01 Device [HAOBO T
 usbcore: registered new interface driver snd-usb-audio
 ```
 
+# Error when USB device disapeear
+```
+Traceback (most recent call last):
+  File "/home/kosiu/audio_hub/./audio_hub.py", line 165, in <module>
+    main()
+  File "/home/kosiu/audio_hub/./audio_hub.py", line 11, in main
+    asyncio.run(s.loop())
+  File "/usr/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 646, in run_until_complete
+    return future.result()
+  File "/home/kosiu/audio_hub/./audio_hub.py", line 30, in loop
+    await asyncio.gather(*loops)
+  File "/home/kosiu/audio_hub/./audio_hub.py", line 147, in ir_loop
+    async for event in device.async_read_loop():
+  File "/usr/local/lib/python3.10/dist-packages/evdev/eventio_async.py", line 93, in next_batch_ready
+    future.set_result(next(self.current_batch))
+  File "/usr/local/lib/python3.10/dist-packages/evdev/eventio.py", line 71, in read
+    events = _input.device_read_many(self.fd)
+OSError: [Errno 19] No such device
+```

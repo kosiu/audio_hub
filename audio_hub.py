@@ -8,7 +8,7 @@ import http_server
 def main():
     global s
     s = State()
-    asyncio.run(ir_loop())
+    asyncio.run(s.loop())
 
 class State:
     def __init__(self):
@@ -22,10 +22,12 @@ class State:
         devices.init()
         http_server.run_thread(self)
 
-    def async_init(self):
+    async def loop(self):
+        loops = ir_loops()
         asyncio.create_task(dbus_bluez.init(self.red_led))
         asyncio.create_task(self.__shedule_player_restart())
         self.set_action('off')
+        await asyncio.gather(*loops)
 
     def set_action(self, action):
         print(f'Action: {action}')
@@ -88,18 +90,15 @@ def ir_key_pressed(key):
     print(f'Remote key pressed:   {keys.KEY[key]}')
     if   key == keys.KEY_VOLUMEDOWN:      s.change_volume(-1)
     elif key == keys.KEY_VOLUMEUP:        s.change_volume(+1)
-    elif key == keys.KEY_0:               s.set_action(0)
-    elif keys.KEY_1 <= key <= keys.KEY_4: s.set_action(key-keys.KEY_1+1)
-    elif key == keys.KEY_6:               s.set_action('bt')
-    elif key == keys.KEY_7:               s.set_action('pc')
-    elif key == keys.KEY_8:               s.set_action('tv')
-    elif key == keys.KEY_9:               s.set_action('off')
-    elif key == keys.KEY_RED:             pass
-    elif key == keys.KEY_GREEN:           pass
-    elif key == keys.KEY_YELLOW:          pass
-    elif key == keys.KEY_BLUE:            s.set_action('stereo')
-    elif key == keys.KEY_UP:              pass
-    elif key == keys.KEY_DOWN:            pass
+    elif keys.KEY_1 <= key <= keys.KEY_5: s.set_action(key-keys.KEY_1)
+    elif key == keys.KEY_BLUETOOTH:       s.set_action('bt')
+    elif key == keys.KEY_VOICECOMMAND:    s.set_action('bt')
+    elif key == keys.KEY_PC:              s.set_action('pc')
+    elif key == keys.KEY_PAGEUP:          s.set_action('pc')
+    elif key == keys.KEY_TV:              s.set_action('tv')
+    elif key == keys.KEY_PAGEDOWN:        s.set_action('tv')
+    elif key == keys.KEY_POWER:           s.set_action('off')
+    elif key == keys.KEY_MUTE:            s.set_action('stereo')
 
 def ir_key_hold(key):
     print(f'Remote key hold:      {keys.KEY[key]}')
@@ -108,18 +107,20 @@ def ir_key_hold(key):
 
 def ir_key_long(key):
     print(f'Remote key long hold: {keys.KEY[key]}')
-    if   key == keys.KEY_6: s.set_action('pair')
-    elif key == keys.KEY_9: s.set_action('reboot')
+    if   key == keys.KEY_BLUETOOTH: s.set_action('pair')
+    elif key == keys.KEY_POWER:     s.set_action('reboot')
 
-def find_ir_device():
-    print("Searching for IR device")
-    ir = None
+def ir_loops():
+    print("Searching for event devices")
     devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
+    loops = set()
     for device in devices:
-        if device.name == 'sunxi-ir': ir = device # 'HAOBO Technology USB Composite Device Keyboard'
+        if (( device.name == 'sunxi-ir' ) or 
+            ( device.name == 'HAOBO Technology USB Composite Device Keyboard')):
+                print('Found: ',device.name)
+                loops.add(asyncio.create_task(ir_loop(device)))
         else: device.close()
-    if ir == None: raise Exception("Can't find IR device")
-    return ir
+    return loops
 
 def test_long_press(key):
     '''Due to buggy RC transmiter (no hold option) hack to detect long press buttons'''
@@ -142,10 +143,8 @@ def test_long_press(key):
     test_long_press.last_press  = now
     test_long_press.last_key    = key
 
-async def ir_loop():
-    s.async_init()
-    ir = find_ir_device()
-    async for event in ir.async_read_loop():
+async def ir_loop(device):
+    async for event in device.async_read_loop():
         if event.type == keys.EV_KEY:
             KEY_PRESSED  = 0
             KEY_RELEASED = 1
@@ -157,8 +156,9 @@ async def ir_loop():
 #--------------------------------------------------------------------------------
 
 def shutdown_app(signum, frame=None):
-    exit_code = 0 if signum != 'restart' else 1
+    exit_code = 0 if signum != 'restart' else 666
     dbus_bluez.exit()
+    devices.end()
     os._exit(exit_code)
 
 if __name__ == '__main__':

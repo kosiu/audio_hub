@@ -4,24 +4,23 @@ protocol = "nec"
 #variant = "necx"
 
 [protocols.scancodes]
-0x2fe10 = "KEY_VOLUMEDOWN" # 
-0x2fe09 = "KEY_VOLUMEUP"   # 
-0x2fe11 = "KEY_RED"        #
-0x2fe16 = "KEY_GREEN"      # 
-0x2fe0a = "KEY_YELLOW"     # 
-0x2fe12 = "KEY_BLUE"       # 5.1 / Stereo
-0x2fe0e = "KEY_UP"         # 
-0x2fe0c = "KEY_DOWN"       # 
-0x2fe19 = "KEY_0"          # Radio 357
-0x2fe08 = "KEY_1"          # Radio Nowy Świat
-0x2fe14 = "KEY_2"          # Radio FIP
-0x2fe15 = "KEY_3"          # RMF Clasic
-0x2fe07 = "KEY_4"          # AntyRadio
-# no key  "KEY_5"
-0x2fe02 = "KEY_6"          # in0 bluetooth
-0x2fe06 = "KEY_7"          # in1 PC
-0x2fe0d = "KEY_8"          # in2 TV
-0x2fe01 = "KEY_9"          # in3 power_off
+0x2fe10 = "KEY_VOLUMEDOWN" # vol +
+0x2fe09 = "KEY_VOLUMEUP"   # vol -
+0x2fe11 = "KEY_6"          # red
+0x2fe16 = "KEY_7"          # green 
+0x2fe0a = "KEY_8"          # yellow
+0x2fe12 = "KEY_MUTE"       # blue      (5.1 / Stereo)
+0x2fe0e = "KEY_9"          # up
+0x2fe0c = "KEY_0"          # down
+0x2fe19 = "KEY_1"          #           (Radio 357)
+0x2fe08 = "KEY_2"          #           (Radio Nowy Świat)
+0x2fe14 = "KEY_3"          #           (Radio FIP)
+0x2fe15 = "KEY_4"          #           (RMF Clasic)
+0x2fe07 = "KEY_5"          #           (AntyRadio)
+0x2fe02 = "KEY_BLUETOOTH"  # bluetooth (in0)
+0x2fe06 = "KEY_PC"         # PC        (in1)
+0x2fe0d = "KEY_TV"         # TV        (in2)
+0x2fe01 = "KEY_POWER"      # power     (in3)
 
 # .----------------------.
 # |                  (9) |
