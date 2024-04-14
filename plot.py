@@ -41,3 +41,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     main(args.history,args.delay)
 
+
+# import os,fcntl,sys
+# orig_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+# fcntl.fcntl(sys.stdin, fcntl.F_SETFL, orig_flags | os.O_NONBLOCK)
+# sys.stdin.read(1)
+

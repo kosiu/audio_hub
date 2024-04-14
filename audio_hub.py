@@ -73,13 +73,14 @@ class State:
 
     async def __shedule_player_restart(self):
         now = datetime.datetime.now()
-        at3 = (now + datetime.timedelta(days=1)).replace(hour=3,minute=0,second=0)
+        at3 = (now + datetime.timedelta(days=4)).replace(hour=3,minute=0,second=0)
         await asyncio.sleep((at3-now).total_seconds())
         pospond = 10
         while self.player.is_playing() and (pospond > 0):
             pospond -= 1
             await asyncio.sleep(3600)
-        shutdown_app('restart')
+        self.player.stop()
+        subprocess.Popen('reboot')
 
 
 # IR Device + Event Loop ----------------------------------------------------
@@ -144,21 +145,28 @@ def test_long_press(key):
     test_long_press.last_key    = key
 
 async def ir_loop(device):
-    async for event in device.async_read_loop():
-        if event.type == keys.EV_KEY:
-            KEY_PRESSED  = 0
-            KEY_RELEASED = 1
-            KEY_HOLD     = 2
-            test_long_press(event.code)
-            if event.value == KEY_RELEASED: ir_key_pressed(event.code)
-            elif event.value ==   KEY_HOLD: ir_key_hold(event.code)
+    try:
+        async for event in device.async_read_loop():
+            if event.type == keys.EV_KEY:
+                KEY_PRESSED  = 0
+                KEY_RELEASED = 1
+                KEY_HOLD     = 2
+                test_long_press(event.code)
+                if event.value == KEY_RELEASED: ir_key_pressed(event.code)
+                elif event.value ==   KEY_HOLD: ir_key_hold(event.code)
+    except OSError as error:
+        print('---------- ERROR USB GLITCH? ---------------')
+        print(error)
+        print('TODO: wait, re-initiate ',device.name)
+        shutdown_app('restart')
 
 #--------------------------------------------------------------------------------
 
 def shutdown_app(signum, frame=None):
-    exit_code = 0 if signum != 'restart' else 666
+    exit_code = 0 if signum != 'restart' else 121
     dbus_bluez.exit()
-    devices.end()
+    try: devices.end()
+    except OSError as error: print('Error when stopping GPIO: ',error)
     os._exit(exit_code)
 
 if __name__ == '__main__':

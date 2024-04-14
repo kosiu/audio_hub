@@ -5,16 +5,18 @@
  1. Main async event loop. Listen only infrared keys (for now)
  1. Aux device 5.1 dac and audio switch controlled through gpio with async tasks
  1. In responce to keys (hold or press) send signals to mixer, vlc, aux
- 1. Reboot ones per week at 3 a.m.
+ 1. Reboot every 3 days at 3 a.m. (temprorary just restart VLC)
  1. Web interface and API
 
 # TODO:
- 1. Problem - usb device dissapears from time to time
- 1. Investigate why after couple of days when device is not rebooted some VLC radios stop to work.
+ 1. Problem - usb device dissapeared one time (not yeat reproduced)
+ 1. Investigate why after 3-4 days when device is not rebooted some VLC radios stop to work.
     - [x] reboot every night helps but I don't like it
     - [x] restart (hard) VLC doesn't help
     - [x] restart Python aplication doesn't help
-    - [ ] maybe it's a problem of DNS? trying: sudo resolvectl flush-caches
+    - [x] maybe it's a problem of DNS? trying: sudo resolvectl flush-caches
+    - [ ] narrowed down to TLS certificates, renewing them doesn't help
+    - ugly solution is to reboot device every 3 days
 
 # Ideas to explore:
  1. Questionable ideas to refactor:
@@ -129,3 +131,4 @@ Traceback (most recent call last):
     events = _input.device_read_many(self.fd)
 OSError: [Errno 19] No such device
 ```
+
