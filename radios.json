@@ -1,7 +1,26 @@
 [
- ["Radio 357",             "https://stream.rcs.revma.com/ye5kghkgcm0uv"],
- ["Radio Nowy \u015awiat", "https://stream.nowyswiat.online/aac"],
- ["Radio FIP",             "http://icecast.radiofrance.fr/fip-midfi.aac"],
- ["RMF Clasic",            "http://195.150.20.242:8000/rmf_classic"],
- ["Antyradio",             "http://an03.cdn.eurozet.pl/ant-waw.mp3"]
+    [
+        "Radio 357",
+        "https://stream.rcs.revma.com/ye5kghkgcm0uv"
+    ],
+    [
+        "Radio Nowy Śawiat",
+        "https://stream.nowyswiat.online/aac"
+    ],
+    [
+        "Trójka",
+        "http://mp3.polskieradio.pl:8954"
+    ],
+    [
+        "Radio FIP",
+        "http://icecast.radiofrance.fr/fip-midfi.aac"
+    ],
+    [
+        "RMF Clasic",
+        "http://195.150.20.242:8000/rmf_classic"
+    ],
+    [
+        "Antyradio",
+        "http://an03.cdn.eurozet.pl/ant-waw.mp3"
+    ]
 ]

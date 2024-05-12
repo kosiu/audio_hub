@@ -16,6 +16,10 @@ async def Home_page():
 async def Get():
     return state.get_ui_state()
 
+@app.get("/get_radios")
+async def Get():
+    return state.radio_list
+
 @app.get("/set")
 async def Set(action=None,volume=None):
     if action!=None: state.set_action(action)

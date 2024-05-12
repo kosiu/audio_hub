@@ -1,3 +1,6 @@
+# Info
+ 1. Database of streams: http://fmstream.org/index.php
+ 
 # Implemented:
  1. Bluetooth sink (hidden non discoverable)
  1. Alsamixer device
@@ -9,6 +12,7 @@
  1. Web interface and API
 
 # TODO:
+ 1. JavaScript to generate "input" and "label" from: "/get_radios" before node "end_radio_list"
  1. Problem - usb device dissapeared one time (not yeat reproduced)
  1. Investigate why after 3-4 days when device is not rebooted some VLC radios stop to work.
     - [x] reboot every night helps but I don't like it
@@ -19,11 +23,11 @@
     - ugly solution is to reboot device every 3 days
 
 # Ideas to explore:
+ 1. Web edit radios
+ 1. Web edit bt devices
  1. Questionable ideas to refactor:
     1. Move IR to class
     1. Move gpio to class
- 1. Web edit radios
- 1. Web edit bt devices
 
 # New buttons in remote:
 

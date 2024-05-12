@@ -67,8 +67,8 @@ class State:
         instance = vlc.Instance('-A alsa')
         self.player = vlc.MediaListPlayer(instance)
         radios = vlc.MediaList(instance)
-        with open('radios.json') as json_file: radio_list = json.load(json_file)
-        for _, stream in radio_list: radios.add_media(stream)
+        with open('radios.json') as json_file: self.radio_list = json.load(json_file)
+        for _, stream in self.radio_list: radios.add_media(stream)
         self.player.set_media_list(radios)
 
     async def __shedule_player_restart(self):
@@ -91,7 +91,7 @@ def ir_key_pressed(key):
     print(f'Remote key pressed:   {keys.KEY[key]}')
     if   key == keys.KEY_VOLUMEDOWN:      s.change_volume(-1)
     elif key == keys.KEY_VOLUMEUP:        s.change_volume(+1)
-    elif keys.KEY_1 <= key <= keys.KEY_5: s.set_action(key-keys.KEY_1)
+    elif keys.KEY_1 <= key <= keys.KEY_0: s.set_action(key-keys.KEY_1)
     elif key == keys.KEY_BLUETOOTH:       s.set_action('bt')
     elif key == keys.KEY_VOICECOMMAND:    s.set_action('bt')
     elif key == keys.KEY_PC:              s.set_action('pc')
