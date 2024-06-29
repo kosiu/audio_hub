@@ -1,4 +1,5 @@
 // Pure UI functions (theme + show more)
+
 function set_initial_theme() {
     var theme = localStorage.getItem('theme');
     if (theme == null) {
@@ -7,7 +8,6 @@ function set_initial_theme() {
     document.documentElement.setAttribute('data-bs-theme', theme)
     document.getElementById('theme').checked = (theme == 'dark') ? true : false;
 };
-//set_initial_theme();
 
 function dark_theme(btn) {
     var theme = (btn.checked == true) ? 'dark' : 'light';
@@ -25,22 +25,12 @@ function more(btn) {
     }
 }
 
-// Comunication with server functions ------------------------------
+// UI update according to incomming data
 
 function generateRadioList(data) {
     const list_end = document.getElementById("end_radio_list");
     const parent = list_end.parentElement
-    //const button_x = document.getElementById("radio_x");
-    //const label_x = document.getElementById("label_x");
     data.forEach((item, index) => {
-        //const button = button_x.cloneNode(true);
-        //button.setAttribute('id', 'radio' + index);
-        //button.setAttribute('value', index);
-
-        //const label = label_x.cloneNode(true);
-        //label.setAttribute('id', 'label' + index);
-        //label.setAttribute('for', 'radio' + index);
-        //label.innerHTML = `<i class="bi-broadcast-pin"></i> ${item[0]}`;
         const radioInput = document.createElement('input');
         radioInput.setAttribute('class', 'btn-check');
         radioInput.setAttribute('type', 'radio');
@@ -57,21 +47,14 @@ function generateRadioList(data) {
         parent.insertBefore(radioInput, list_end);
         parent.insertBefore(label, list_end);
     });
-    //label_x.remove();
-    //button_x.remove();
 }
-//function radioList() {
-//fetch('/get_radios')
-//    .then((response) => response.json())
-//    .then((data) => generateRadioList(data));
-//}
-//radioList();
 
 function set_ui(data) {
     document.main.volume.value = data.volume;
     document.main.state.value = data.input;
 };
 
+// Comunication with server functions
 function send_action(action) { fetch('/set?action=' + action.value) }
 function send_volume(volume) { fetch('/set?volume=' + volume.value) }
 
@@ -90,4 +73,3 @@ document.addEventListener('DOMContentLoaded', () => {
         .then((response) => response.json())
         .then((data) => set_ui(data));
 }, false);
-
