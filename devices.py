@@ -30,39 +30,48 @@ class System_Led:
             await asyncio.sleep(off_time)
         self.default()
 
-
+# Current configuration:
+#             audio_hub | function | krn | |header | krn | function | audio_hub
+#  ---------------------|----------|-----|----|----|-----|----------|----------
+#                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | power in+
+#                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut |
+#                       |  I2C SCL | 121 |  5 |  6 |     | GND      |
+#                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  |
+#                       |      GND |     |  9 | 10 | 355 | RX UART  |
+#                       |          | 120 | 11 | 12 | 114 |          |
+#                       |          | 119 | 13 | 14 |     | GND      |
+#                       |          | 362 | 15 | 16 | 111 |          |
+#                       | 3.3V Out |     | 17 | 18 | 112 |          |
+#   led 1 fiber optic 1 | SPI MOSI | 229 | 19 | 20 |     | GND      |
+#   button 5.1 / stereo | SPI MISO | 230 | 21 | 22 | 117 |          |
+# button input selector | SPI  CLK | 228 | 23 | 24 | 227 | SPI CS   | led 3 digital coaxial
+#             power in- |      GND |     | 25 | 26 | 360 | PWM0     | led 2 fiber optic 2
+# 
+# Proposition:
+#             audio_hub | function | krn || header | krn | function | audio_hub
+#  ---------------------|----------|-----|----|----|-----|----------|----------
+#                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | power in+
+#                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut |
+#                       |  I2C SCL | 121 |  5 |  6 |     | GND      |
+#                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  |
+#                       |      GND |     |  9 | 10 | 355 | RX UART  |
+#   led 1 fiber optic 1 |          | 120 | 11 | 12 | 114 |          | led 3 digital coaxial
+#   button 5.1 / stereo |          | 119 | 13 | 14 |     | GND      | power in-
+# button input selector |          | 362 | 15 | 16 | 111 |          | led 2 fiber optic 2
+#            volume VCC | 3.3V Out |     | 17 | 18 | 112 |          |
+#                       | SPI MOSI | 229 | 19 | 20 |     | GND      | 
+#            volume  DI | SPI MISO | 230 | 21 | 22 | 117 |          | 
+#            volume CLK | SPI  CLK | 228 | 23 | 24 | 227 | SPI CS   | volume CS
+#            volume GND |      GND |     | 25 | 26 | 360 | PWM0     | 
+# 
 pin_map = { # key: header pin number, value: gpio kernel number
-#  1: 3.3V
-#  2: 5V     connected
-   3: 122,
-#  4: 5V
-   5: 121,
-#  6: GND
-   7: 118,
-   8: 354,
-#  9: GND
-  10: 355,
-  11: 120,
-  12: 114,
-  13: 119,
-# 14: GND
-  15: 362,
-  16: 111,
-# 17: 3.3V
-  18: 112,
-  19: 229, # led 1 fiber optic 1
-# 20: GND
-  21: 230, # button 5.1 / stereo
-  22: 117,
-  23: 228, # button input selector
-  24: 227, # led 3 digital coaxial
-# 25: GND    conected
-  26: 360} # led 2 fiber optic 2
+              8:354, 10:355, 12:114,         16:111, 18:112,         22:117, 24:227, 26:360, 
+3:122, 5:121, 7:118,         11:120, 13:119, 15:362,         19:229, 21:230, 23:228        }
 
 # constants
-input_btn = 23
-surround_btn = 21
-leds = [19, 26, 24] # led1, led2, led3
+input_btn = 15 # 23
+surround_btn = 13 # 21
+leds = [11, 16, 12] # [19, 26, 24] # led1, led2, led3
 
 dac_inputs = ['bt', 'pc', 'tv', 'off']
 
