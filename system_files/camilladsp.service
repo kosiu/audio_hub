@@ -1,0 +1,16 @@
+[Unit]
+Description=CamillaDSP engine for Audio Hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kosiu
+WorkingDirectory=/home/kosiu/camilladsp
+ExecStartPre=/usr/bin/mkdir -p /home/kosiu/camilladsp/configs /home/kosiu/camilladsp/coeffs
+ExecStart=/home/kosiu/opt/camilladsp-v4.1.3/camilladsp -a 127.0.0.1 -p 1234 -w -s /home/kosiu/camilladsp/statefile.yml -o /home/kosiu/camilladsp/camilladsp.log -l info
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

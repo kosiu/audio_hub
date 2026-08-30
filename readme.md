@@ -25,7 +25,9 @@ GPIO still not conected which means:
 4. Everytime new package is installed information is added on last chprer here 
    `installation`
 5. `CamillaDSP` will be central part of the system for audio transformation and
-   should take all heavy lifting, ALSA interface super minimal configuration.
+   should take all heavy lifting. ALSA should stay minimal and feed audio into
+   CamillaDSP, while filters, balancing, remapping, and 6 channel output live
+   in CamillaDSP.
 6. Version 1.0 is described here: [AudioHub v1.0](doc/v1_documentation.md)
 
 
@@ -72,3 +74,35 @@ In `/etc/boot/orangepiEnv.txt` add:
 ```text
 overlays=spi-spidev1
 ```
+
+### CamillaDSP
+
+1. Download from github: https://github.com/HEnquist/camilladsp/releases
+2. For this OrangePi use the plain ALSA build: `camilladsp-linux-aarch64.tar.gz`
+3. Archive downloaded to: `/home/kosiu/Downloads/camilladsp-linux-aarch64.tar.gz`
+4. Installed to: `/home/kosiu/opt/camilladsp-v4.1.3/camilladsp`
+5. Tracked systemd unit: `system_files/camilladsp.service`
+6. Service starts websocket on `127.0.0.1:1234`, waits for config, keeps
+   state in `/home/kosiu/camilladsp/statefile.yml`, and logs to
+   `/home/kosiu/camilladsp/camilladsp.log`
+7. Install it with root privileges:
+   `sudo cp /home/kosiu/audio_hub/system_files/camilladsp.service /etc/systemd/system/`
+8. Then enable it:
+   `sudo systemctl daemon-reload && sudo systemctl enable --now camilladsp.service`
+
+### CamillaGUI
+
+1. Download from github: https://github.com/HEnquist/camillagui-backend/releases
+2. For this OrangePi use the bundled Linux backend: `bundle_linux_aarch64.tar.gz`
+3. Archive downloaded to: `/home/kosiu/Downloads/bundle_linux_aarch64.tar.gz`
+4. Installed to: `/home/kosiu/opt/camillagui-v4.1.0/camillagui_backend/`
+5. Executable path: `/home/kosiu/opt/camillagui-v4.1.0/camillagui_backend/camillagui_backend`
+6. Default work dirs prepared for GUI: `/home/kosiu/camilladsp/configs` and `/home/kosiu/camilladsp/coeffs`
+7. Start with:
+   `/home/kosiu/opt/camillagui-v4.1.0/camillagui_backend/camillagui_backend`
+8. GUI served at: `http://127.0.0.1:5005/gui/index.html`
+9. Tracked systemd unit: `system_files/camillagui.service`
+10. Install it with root privileges:
+   `sudo cp /home/kosiu/audio_hub/system_files/camillagui.service /etc/systemd/system/`
+11. Then enable it:
+   `sudo systemctl daemon-reload && sudo systemctl enable --now camillagui.service`
