@@ -5,6 +5,9 @@ import devices                       # local file require: OPi.GPIO
 import dbus_bluez                    # local file require: dbus_next
 import http_server
 
+USB_AUDIO_CARD = 1
+USB_AUDIO_MIXER = 'Speaker'
+
 def main():
     global s
     s = State()
@@ -15,7 +18,7 @@ class State:
         signal.signal(signal.SIGINT,  shutdown_app)
         signal.signal(signal.SIGTERM, shutdown_app)
         self.__init_radios()
-        self.mixer     = alsaaudio.Mixer('Master')
+        self.mixer     = alsaaudio.Mixer(USB_AUDIO_MIXER, cardindex=USB_AUDIO_CARD)
         self.update_ui = asyncio.Event()
         self.red_led   = devices.System_Led('red',  'trigger','mmc0')
         self.green_led = devices.System_Led('green','trigger','rc-feedback')
@@ -33,7 +36,6 @@ class State:
         print(f'Action: {action}')
         if type(action) == int or action.isdigit(): self.__set_radio(int(action))
         elif action in devices.dac_inputs: self.__set_dac_in(action)
-        elif action == 'stereo': asyncio.create_task(devices.surround_toggle())
         elif action == 'reboot': subprocess.Popen('reboot')
         elif action == 'pair':   asyncio.create_task(dbus_bluez.enable_pairing())
         else: print(f'Unknown action: {action}')
@@ -99,7 +101,6 @@ def ir_key_pressed(key):
     elif key == keys.KEY_TV:              s.set_action('tv')
     elif key == keys.KEY_PAGEDOWN:        s.set_action('tv')
     elif key == keys.KEY_POWER:           s.set_action('off')
-    elif key == keys.KEY_MUTE:            s.set_action('stereo')
 
 def ir_key_hold(key):
     print(f'Remote key hold:      {keys.KEY[key]}')

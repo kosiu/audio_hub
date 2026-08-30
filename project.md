@@ -26,11 +26,10 @@ It reads commands from:
 It drives:
 
 1. The DAC input selector through GPIO button emulation.
-2. The DAC surround/stereo toggle through GPIO button emulation.
-3. The DAC input state detection through GPIO reads of LED lines.
-4. ALSA volume.
-5. VLC internet radio playback.
-6. BlueZ pairing mode and Bluetooth audio sink playback.
+2. The DAC input state detection through GPIO reads of LED lines.
+3. ALSA volume.
+4. VLC internet radio playback.
+5. BlueZ pairing mode and Bluetooth audio sink playback.
 
 Audio path summary:
 
@@ -73,9 +72,8 @@ Runtime actions:
 3. `pc` selects the PC DAC input.
 4. `tv` selects the TV DAC input.
 5. `off` selects the silent DAC input.
-6. `stereo` toggles surround or stereo on the DAC or amplifier side.
-7. `pair` enables temporary Bluetooth pairing mode.
-8. `reboot` reboots the whole OrangePi.
+6. `pair` enables temporary Bluetooth pairing mode.
+7. `reboot` reboots the whole OrangePi.
 
 ## Hardware Interface Contract
 
@@ -118,22 +116,7 @@ Implication for Hardware 2.0:
 2. Any redesign should expose selected input directly.
 3. The mapping from physical indicator to logical source should be made explicit in configuration, not code comments.
 
-### 3. Surround or stereo toggle interface
-
-Owned by `devices.py`.
-
-Current contract:
-
-1. OrangePi emulates a press of another physical button.
-2. The line is pulled low for about `0.2s`.
-3. There is no readback.
-
-Implication for Hardware 2.0:
-
-1. The current design is write-only.
-2. If surround mode matters, add state feedback.
-
-### 4. Local audio production interface
+### 3. Local audio production interface
 
 Owned mostly by `audio_hub.py`.
 
@@ -150,7 +133,7 @@ Implication for Hardware 2.0:
 2. They are software sources mixed into one local hardware path.
 3. Keep that distinction clear in naming and UI.
 
-### 5. Input devices
+### 4. Input devices
 
 Owned by `audio_hub.py` plus `system_files/*.toml`.
 
@@ -317,8 +300,7 @@ Why it matters:
 What it controls:
 
 1. DAC input selection by emulating a front-panel button.
-2. Surround or stereo mode by emulating another front-panel button.
-3. DAC source detection by reading LED lines.
+2. DAC source detection by reading LED lines.
 
 Current logical input map:
 
@@ -331,9 +313,8 @@ Important implementation details:
 
 1. `gpio.setup(leds, gpio.IN)` makes the DAC indicator lines inputs.
 2. `gpio.setup(input_btn, gpio.OUT, initial=gpio.HIGH)` prepares the fake input-select button.
-3. `gpio.setup(surround_btn, gpio.OUT, initial=gpio.HIGH)` prepares the fake surround-toggle button.
-4. `set_aux()` serializes overlapping source changes through the global `aux_to_select` variable.
-5. `get_aux()` stores its inferred state into `/dev/shm/aux`.
+3. `set_aux()` serializes overlapping source changes through the global `aux_to_select` variable.
+4. `get_aux()` stores its inferred state into `/dev/shm/aux`.
 
 Migration concerns:
 
@@ -369,9 +350,8 @@ Action model:
 
 1. Numeric action -> play radio station and force local input.
 2. DAC input name -> stop VLC and select external or local source.
-3. `stereo` -> toggle surround mode.
-4. `pair` -> open Bluetooth pairing window.
-5. `reboot` -> reboot OS.
+3. `pair` -> open Bluetooth pairing window.
+4. `reboot` -> reboot OS.
 
 Important implementation details:
 
@@ -478,8 +458,6 @@ One TODO says the radio list should be generated in JavaScript, but that is alre
 That is useful for isolated UI testing, but not part of the real runtime once imported by `audio_hub.py`.
 6. The logical action name `bt` is historically stale.
 It no longer describes only Bluetooth.
-7. The hidden web UI pairing button currently sends `bt pair`, but the backend action handlers accept `pair`.
-Treat that as a live mismatch until the code is corrected.
 
 ## Hardware 2.0 Migration Checklist
 
@@ -506,7 +484,6 @@ These are documentation names only for now.
 | `off` | `mute_input` or `silent_input` |
 | `set_aux()` | `select_dac_input()` |
 | `next_aux()` | `pulse_input_select_button()` |
-| `surround_toggle()` | `pulse_surround_button()` |
 
 ## Final Summary
 
@@ -515,7 +492,7 @@ The software is small, but it encodes several physical assumptions.
 
 The most important migration rule is simple:
 
-Preserve the boundary around source selection, surround toggle, source readback, and local audio generation.
+Preserve the boundary around source selection, source readback, and local audio generation.
 
 If Hardware 2.0 gets a cleaner electrical or digital interface, replace only the adapter layer first.
 That keeps the remote logic, Bluetooth logic, radio logic, and HTTP API stable while the hardware changes underneath.

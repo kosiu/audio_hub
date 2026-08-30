@@ -54,7 +54,7 @@ class State:
         self.update_ui = asyncio.Event()
         self.state = dict(input='off',volume=10)
         self.dac_inputs = ['bt','pc','tv','off']
-        self.do_nothing = ['stereo','reboot','pair']
+        self.do_nothing = ['reboot','pair']
         self.update_ui.set()
 
     def set_action(self, action):

@@ -39,7 +39,7 @@ class System_Led:
 #                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  |
 #                       |      GND |     |  9 | 10 | 355 | RX UART  |
 #   led 1 fiber optic 1 |          | 120 | 11 | 12 | 114 |          | led 3 digital coaxial
-#   button 5.1 / stereo |          | 119 | 13 | 14 |     | GND      | power in-
+#                unused |          | 119 | 13 | 14 |     | GND      | power in-
 # button input selector |          | 362 | 15 | 16 | 111 |          | led 2 fiber optic 2
 #            volume VCC | 3.3V Out |     | 17 | 18 | 112 |          |
 #                       | SPI MOSI | 229 | 19 | 20 |     | GND      | 
@@ -53,42 +53,62 @@ pin_map = { # key: header pin number, value: gpio kernel number
 
 # constants
 input_btn = 18 # 16 will be closer to rest of the signals
-surround_btn = 12
 leds = [13, 11, 15] # led1, led2, led3 (pc,tv,coax)
 
 dac_inputs = ['bt', 'pc', 'tv', 'off']
+AUX_STATE_PATH = '/dev/shm/aux'
+
+def _read_cached_aux(default=0):
+    try:
+        with open(AUX_STATE_PATH) as f:
+            aux = int(f.read().strip())
+        if 0 <= aux < len(dac_inputs):
+            return aux
+    except (FileNotFoundError, ValueError):
+        pass
+    return default
+
+cached_aux = _read_cached_aux()
+
+def _write_aux_state(aux):
+    global cached_aux
+    cached_aux = aux
+    with open(AUX_STATE_PATH,'w') as f:
+        f.write(str(aux))
+    return aux
 
 # GLOBAL state variable in case 2 select_input tasks are launch
 aux_to_select = -1
 
 def init():
     gpio.setmode(pin_map)
-    gpio.setup(leds, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
-    gpio.setup(input_btn,    gpio.OUT, initial=gpio.HIGH)
-    gpio.setup(surround_btn, gpio.OUT, initial=gpio.HIGH)
+    # DAC GPIO connector is disconnected during the 2.0 migration.
+    # Uncomment the lines below when the external selector wiring is back.
+    # gpio.setup(leds, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
+    # gpio.setup(input_btn, gpio.OUT, initial=gpio.HIGH)
     return get_aux()
 
 def end():
     gpio.cleanup()
 
 def get_aux():
-    i = 0
-    if   gpio.input(leds[0])==0: i = 1 # Optical 1
-    elif gpio.input(leds[1])==0: i = 2 # Optical 2
-    elif gpio.input(leds[2])==0: i = 3 # Coaxial
-    with open('/dev/shm/aux','w') as f: f.write(str(i))
-    return i                           # Stereo IN
-
-async def surround_toggle():
-    gpio.output(surround_btn, gpio.LOW)
-    await asyncio.sleep(.2)           # 0.08 time of push
-    gpio.output(surround_btn, gpio.HIGH)
+    # DAC LED feedback is disconnected, so keep the last requested source.
+    # Uncomment the block below when the DAC indicator lines are wired again.
+    # i = 0
+    # if   gpio.input(leds[0])==0: i = 1 # Optical 1
+    # elif gpio.input(leds[1])==0: i = 2 # Optical 2
+    # elif gpio.input(leds[2])==0: i = 3 # Coaxial
+    # return _write_aux_state(i)
+    return _write_aux_state(cached_aux)
 
 async def next_aux():
-    gpio.output(input_btn, gpio.LOW)
-    await asyncio.sleep(.2)           # 0.08 time of push
-    gpio.output(input_btn, gpio.HIGH)
-    await asyncio.sleep(.8)           # 0.8 time of responce
+    # DAC input button line is disconnected during migration.
+    # Uncomment the block below when the external selector wiring is back.
+    # gpio.output(input_btn, gpio.LOW)
+    # await asyncio.sleep(.2)           # 0.08 time of push
+    # gpio.output(input_btn, gpio.HIGH)
+    # await asyncio.sleep(.8)           # 0.8 time of responce
+    await asyncio.sleep(0)
 
 async def set_aux(aux):
     aux = dac_inputs.index(aux)
@@ -99,12 +119,26 @@ async def set_aux(aux):
     else: 
         aux_to_select = aux
 
-    current_aux = get_aux()
-    while current_aux != aux_to_select:
-        await next_aux()
-        current_aux = get_aux()
-        print("now: ", current_aux, "search: ", aux_to_select)
+    try:
+        # DAC selector connector is unplugged during migration.
+        # Keep the requested source only in software for now.
+        _write_aux_state(aux_to_select)
+        print('DAC selector GPIO disconnected, cached request only')
+        return
 
-    print("OK")
-    aux_to_select = -1
+        # Uncomment this old selector loop after restoring the DAC GPIO wiring.
+        # current_aux = get_aux()
+        # steps_left = len(dac_inputs)
+        # while current_aux != aux_to_select and steps_left > 0:
+        #     await next_aux()
+        #     current_aux = get_aux()
+        #     steps_left -= 1
+        #     print("now: ", current_aux, "search: ", aux_to_select)
+        #
+        # if current_aux == aux_to_select:
+        #     print("OK")
+        # else:
+        #     print(f'Unable to confirm DAC input {dac_inputs[aux_to_select]} after {len(dac_inputs)} steps')
+    finally:
+        aux_to_select = -1
 
