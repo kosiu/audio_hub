@@ -1,18 +1,19 @@
 ---
-title: "Audio Hub minimal 6ch"
-description: "First Audio Hub 2.0 CamillaDSP config. Stereo from ALSA loopback in, six channels to the USB card out, with simple subwoofer crossover."
+title: "Audio Hub test: rear right"
+description: "Speaker identification profile for the physical rear right output"
 
 devices:
   samplerate: 48000
   chunksize: 1024
   capture:
-    type: Alsa
-    channels: 2
-    device: "hw:Loopback,0,0"
-    format: S16_LE
+    type: SignalGenerator
+    channels: 1
+    signal:
+      type: Sine
+      freq: 500
+      level: -35.0
     labels:
-      - "input_left"
-      - "input_right"
+      - "test_tone"
   playback:
     type: Alsa
     channels: 6
@@ -20,10 +21,10 @@ devices:
     format: S16_LE
 
 mixers:
-  stereo_to_6:
-    description: "Mirror the old ALSA route while moving channel mapping into CamillaDSP"
+  test_to_6:
+    description: "Route the test tone to one physical speaker"
     channels:
-      in: 2
+      in: 1
       out: 6
     labels:
       - "front_left"
@@ -36,51 +37,43 @@ mixers:
       - dest: 0
         sources:
           - channel: 0
-            gain: 0.0
+            gain: -120.0
             inverted: false
       - dest: 1
         sources:
-          - channel: 1
-            gain: 0.0
+          - channel: 0
+            gain: -120.0
             inverted: false
       - dest: 2
         sources:
           - channel: 0
-            gain: -6.0
-            inverted: false
-          - channel: 1
-            gain: -6.0
+            gain: -120.0
             inverted: false
       - dest: 3
         sources:
           - channel: 0
-            gain: -6.0
-            inverted: false
-          - channel: 1
-            gain: -6.0
+            gain: -120.0
             inverted: false
       - dest: 4
         sources:
           - channel: 0
-            gain: 0.0
+            gain: -120.0
             inverted: false
       - dest: 5
         sources:
-          - channel: 1
+          - channel: 0
             gain: 0.0
             inverted: false
 
 filters:
   subwoofer_lowpass_120hz:
     type: Biquad
-    description: "Simple starting lowpass for the current physical subwoofer channel"
     parameters:
       type: Lowpass
       freq: 120
       q: 0.707
   speakers_highpass_120hz:
     type: Biquad
-    description: "Simple starting highpass for all non-subwoofer channels"
     parameters:
       type: Highpass
       freq: 120
@@ -88,15 +81,12 @@ filters:
 
 pipeline:
   - type: Mixer
-    description: "Expand stereo input to the current 6 channel speaker layout"
-    name: stereo_to_6
+    name: test_to_6
   - type: Filter
-    description: "Protect the physical subwoofer with a lowpass"
     channels: [2]
     names:
       - subwoofer_lowpass_120hz
   - type: Filter
-    description: "Protect the other speakers with a matching highpass"
     channels: [0, 1, 3, 4, 5]
     names:
       - speakers_highpass_120hz
