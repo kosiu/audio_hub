@@ -7,10 +7,8 @@ def main():
         Path('/etc/default/bluez-alsa'),
         Path('/etc/systemd/system/audio_hub.service'),
         Path('/etc/systemd/logind.conf'),
-        Path('/etc/rc_keymaps/custom.toml'),
-        Path('/etc/rc_keymaps/lg.toml'),
-        Path('/etc/rc_maps.cfg'),
         Path('/etc/udev/rules.d/99-gpio.rules'),
+        Path('/etc/asound.conf'),
         ]
     dest = Path('system_files')
     for f in src:

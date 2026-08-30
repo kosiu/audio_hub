@@ -1,73 +1,198 @@
-```
-import spidev;from time import sleep;spi = spidev.SpiDev();spi.open(1, 0)
+# Audio Hub 1.0
 
-spi.mode # def: 0b00 [CPOL|CPHA], datasheet: 0b00 or 0b11 
-spi.max_speed_hz  # def: 1_000_000
-spi.bits_per_word # def: 8, datasheet:8
-spi.cshigh        # def: False
-spi.loop          # def: False
-spi.no_cs         # def: False
-spi.lsbfirst      # def: False
-spi.threewire     # def: False
-spi.read0         # def: False
-```
+## Description
 
-# Install
-In `/etc/boot/orangepiEnv.txt` add line:
+Audio Hub 1.0 is an OrangePi-based audio switcher and local audio source.
+It selects the active DAC input, produces local audio for internet radio and Bluetooth sink, exposes control through IR remote and HTTP API, and mirrors a small part of the hardware state back into software.
 
-    overlays=spi-spidev1
+OrangePi is the control center.
+It reads commands from the infrared remote, the HTTP server and web UI, and Bluetooth pairing events.
+It drives the DAC input selector through GPIO button emulation, the DAC surround or stereo toggle through GPIO button emulation, the DAC input state detection through GPIO reads of LED lines, ALSA volume, VLC internet radio playback, and BlueZ pairing mode with Bluetooth sink playback.
 
-# Info
- 1. Database of streams: http://fmstream.org/index.php
- 
-# Implemented:
- 1. Bluetooth sink (hidden non discoverable)
- 1. Alsamixer device
- 1. Vlc player with radio station media list
- 1. Main async event loop. Listen only infrared keys (for now)
- 1. Aux device 5.1 dac and audio switch controlled through gpio with async tasks
- 1. In responce to keys (hold or press) send signals to mixer, vlc, aux
- 1. Reboot every 3 days at 3 a.m. (temprorary just restart VLC)
- 1. Web interface and API
+Audio path summary:
 
-# TODO:
- 1. JavaScript to generate "input" and "label" from: `/get_radios` before node `end_radio_list`
- 1. Problem - usb device dissapeared one time (not yeat reproduced)
- 1. Investigate why after 3-4 days when device is not rebooted some VLC radios stop to work.
-    - [x] reboot every night helps but I don't like it
-    - [x] restart (hard) VLC doesn't help
-    - [x] restart Python aplication doesn't help
-    - [x] maybe it's a problem of DNS? trying: sudo resolvectl flush-caches
-    - [ ] narrowed down to TLS certificates, renewing them doesn't help
-    - ugly solution is to reboot device every 3 days
+1. OrangePi produces local audio for radio and Bluetooth sink.
+2. OrangePi analog or internal audio output goes into one DAC input.
+3. PC and TV are connected to two DAC digital inputs.
+4. One DAC digital input is used as a silent or off state.
+5. DAC output goes to the 5.1 amplifier.
+6. Amplifier output goes to speakers.
 
-# Ideas to explore:
- 1. Web edit radios
- 1. Web edit bt devices
- 1. Questionable ideas to refactor:
-    1. Move IR to class
-    1. Move gpio to class
+Important naming note:
 
-# New buttons in remote:
+The software action `bt` is a historical name.
+In practice it means the OrangePi local audio path.
+That path is shared by Bluetooth sink and internet radio.
 
-```
-custom ir:      lg ir:     new radio rc:
-KEY_BLUETOOTH   (tv/radio) KEY_VOICECOMMAND  <- DAC out 0 (long press - pair)
-KEY_PC          (tv/pc)    KEY_PAGEUP        <- DAC out 1
-KEY_TV          (input)    KEY_PAGEDOWN      <- DAC out 2
-KEY_POWER                                    <- DAC out 3 (long press - reboot)
-KEY_MUTE (blue)                              <- Surround / Stereo -> better: KEY_BASSBOOST
-KEY_VOLUMEDOWN                               <- volume +
-KEY_VOLUMEUP                                 <- volume -
-KEY_0 ... 9                                  <- Radios
-```
+Important power note:
 
-All keys on new remote left -> right, top -> down
-```
+The software action `off` does not power down the amplifier or DAC.
+It selects a DAC input that is treated as silent.
+
+![Audio Hub 1.0 hardware view](project_architecture.svg)
+
+## Software Architecture
+
+Control flow summary:
+
+1. `audio_hub.py` creates global runtime state.
+2. It starts the HTTP server thread.
+3. It starts Bluetooth event monitoring.
+4. It discovers evdev input devices for IR and USB remote input.
+5. Every command is normalized into `set_action()` or `set_volume()`.
+6. Hardware-facing work is delegated to `devices.py` and `dbus_bluez.py`.
+
+Runtime actions:
+
+1. `0..9` selects a radio stream in VLC and forces the DAC to the OrangePi local input.
+2. `bt` selects the OrangePi local input.
+3. `pc` selects the PC DAC input.
+4. `tv` selects the TV DAC input.
+5. `off` selects the silent DAC input.
+6. `stereo` toggles surround or stereo on the DAC or amplifier side.
+7. `pair` enables temporary Bluetooth pairing mode.
+8. `reboot` reboots the whole OrangePi.
+
+## Hardware Interface
+
+### DAC input select
+
+Owned by `devices.py`.
+
+1. There is no direct source-select bus.
+2. OrangePi emulates a press of the DAC input button by pulling one GPIO line low for about `0.2s`.
+3. The DAC moves to the next input in its own internal cycle.
+4. Software waits about `0.8s` for the DAC to react.
+5. Software reads three LED sense lines to infer which input is active.
+6. Software repeats the fake button press until the inferred input matches the requested logical state.
+
+### DAC state feedback
+
+Owned by `devices.py`.
+
+1. Three GPIO inputs watch three LED lines.
+2. LED1 low means optical input 1.
+3. LED2 low means optical input 2.
+4. LED3 low means coaxial input.
+5. If none is active, software treats that as input `0`, which is the OrangePi local path.
+
+### Surround or stereo toggle
+
+Owned by `devices.py`.
+
+1. OrangePi emulates a press of another physical button.
+2. The line is pulled low for about `0.2s`.
+3. There is no readback.
+
+### Local audio production
+
+Owned mostly by `audio_hub.py`.
+
+1. VLC plays internet radio streams.
+2. `bluealsa-aplay` plays Bluetooth sink audio.
+3. Both rely on the OrangePi audio stack.
+4. Both share one physical DAC input path.
+
+### Input devices
+
+Owned by `audio_hub.py`.
+
+1. Commands come from Linux evdev key events.
+2. Supported device names are hard-coded.
+3. Long press for some keys is detected by a timing hack because one remote does not send proper hold events.
+
+## File Map
+
+### Runtime files
+
+| File | Description |
+| --- | --- |
+| `audio_hub.py` | Main runtime, state, command dispatch, radio playback, and IR loop. Main application. Translates remote and API requests into player, mixer, Bluetooth, and DAC actions. |
+| `audio_hub.sh` | Wrapper script for the Python process. Restarts `audio_hub.py` only when it exits with code `121`. |
+| `devices.py` | GPIO adapter for DAC control and state sensing. Owns the hardware-facing GPIO contract. |
+| `dbus_bluez.py` | BlueZ pairing control and Bluetooth sink helper processes. Starts helper processes and manages temporary pairing mode through D-Bus. |
+| `http_server.py` | REST API, SSE updates, and static file serving. FastAPI server used by the browser UI and other HTTP clients. |
+| `radios.json` | Static list of radio station names and stream URLs. |
+| `system_cfg.py` | System file snapshot helper. Copies tracked live system files into `system_files/`. |
+| `plot.py` | Local thermal plotting helper. Plots CPU temperatures. Not part of the audio runtime. |
+| `piano2.wav` | Local audio asset not referenced by the runtime. |
+
+### Web UI files
+
+| File | Description |
+| --- | --- |
+| `static/index.html` | Browser control panel layout. Declares the controls for input selection, volume, pairing, reboot, and theme. |
+| `static/main.js` | Browser control logic. Sends REST requests, subscribes to SSE updates, and builds the radio button list. |
+| `static/styles.css` | Small custom styling on top of Bootstrap. |
+| `static/favicon.ico` | Browser favicon. |
+| `static/favicon-192x192.png` | Larger icon for browsers and pinned shortcuts. |
+
+### Deployment and OS integration files
+
+| File | Description |
+| --- | --- |
+| `system_files/audio_hub.service` | Systemd unit for boot startup. Starts the wrapper script after the network is up. |
+| `system_files/bluez-alsa` | Bluetooth audio sink configuration. Enables A2DP sink mode. |
+| `system_files/99-gpio.rules` | GPIO and LED permission rules. Grants service-user access to the sysfs nodes used by the app. |
+| `system_files/asound.conf` | ALSA routing for local playback. Routes stereo input into the 5.1 USB audio device channels. |
+| `system_files/logind.conf` | System power-key policy. Sets `HandlePowerKey=ignore` to avoid conflict with app behavior. |
+
+## Detailed Notes
+
+### `devices.py`
+
+1. This file is the hardware abstraction layer.
+2. It controls DAC input selection by emulating a front-panel button.
+3. It controls surround or stereo mode by emulating another front-panel button.
+4. It detects the current DAC source by reading LED lines.
+5. The logical input map is `bt`, `pc`, `tv`, `off`.
+6. `set_aux()` serializes overlapping source changes through the global `aux_to_select` variable.
+7. `get_aux()` stores the inferred input state in `/dev/shm/aux`.
+
+### `audio_hub.py`
+
+1. This is the command router and main state holder.
+2. It loads radio definitions from `radios.json`.
+3. It creates an ALSA mixer on `Master`.
+4. It starts the HTTP server with `http_server.run_thread(self)`.
+5. It starts Bluetooth monitoring with `dbus_bluez.init()`.
+6. It scans evdev devices and attaches async loops.
+7. The state value `input` is overloaded and can hold either a DAC input name or a radio index.
+8. A scheduled reboot is used as a workaround for long-running radio failures.
+9. A missing evdev device can force the controlled restart path.
+
+### `dbus_bluez.py`
+
+1. This module defines the Bluetooth operating mode.
+2. It starts `bt-agent` with `NoInputNoOutput` capability.
+3. It starts `bluealsa-aplay` as the Bluetooth sink playback path.
+4. It watches BlueZ adapter properties over D-Bus.
+5. It blinks the red system LED while the adapter is discoverable.
+6. It disables pairing automatically after a timeout or a new device event.
+
+### `http_server.py`
+
+1. This module is the HTTP integration surface.
+2. `/` redirects to the static UI.
+3. `/get` returns the current input and volume.
+4. `/get_radios` returns the radio list.
+5. `/set` mutates action and volume.
+6. `/update` provides SSE updates for the UI.
+7. The server binds to a fixed IP address: `192.168.1.18`.
+8. The module also contains a local `State` mock for standalone UI testing.
+
+## Current Notes
+
+1. Database of streams: http://fmstream.org/index.php
+2. The hidden web UI pairing button currently sends `bt pair`, but the backend action handlers accept `pair`.
+
+Remote layout, left to right and top to bottom:
+
+```text
 KEY_POWER
 KEY_MUTE
 KEY_PAGEUP
-(mouse button is not en event)
+(mouse button is not an event)
 KEY_PAGEDOWN
 KEY_UP
 KEY_DOWN
@@ -87,71 +212,16 @@ KEY_BACKSPACE
 KEY_COMPOSE
 ```
 
-# New states concepts:
-Actions:
- - tv
- - pc
- - bt
- - off
- - 0 ... 9 radios
+## Installation
 
-Actions:
- - all above +
- - stereo
- - reboot
- - bt pair
-
-Not yeat clasified:
- - bt pairing
- - bt idle
- - bt connected
- - bt playing
- - radio x playing
-
-
-# Installation
-```
+```text
 pip install OPi.GPIO dbus-next
 pip install evdev python-vlc pyalsaaudio
 pip install uvicorn fastapi sse-starlette
 ```
 
-# Dmesg for new remote controller
-It's add: Mouse, keyboard and soundcard
-```
-usb 6-1: new full-speed USB device number 2 using ohci-platform
-usb 6-1: New USB device found, idVendor=4842, idProduct=0001, bcdDevice= 1.00
-usb 6-1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
-usb 6-1: Product: USB Composite Device
-usb 6-1: Manufacturer: HAOBO Technology
-usb 6-1: SerialNumber: 1120030400060622
-input: HAOBO Technology USB Composite Device Keyboard as /devices/platform/soc/5311400.usb/usb6/6-1/6-1:1.2/0003:4842:0001.0001/input/input2
-hid-generic 0003:4842:0001.0001: input,hidraw0: USB HID v2.01 Keyboard [HAOBO Technology USB Composite Device] on usb-5311400.usb-1/input2
-input: HAOBO Technology USB Composite Device as /devices/platform/soc/5311400.usb/usb6/6-1/6-1:1.3/0003:4842:0001.0002/input/input3
-hid-generic 0003:4842:0001.0002: input,hidraw1: USB HID v2.01 Mouse [HAOBO Technology USB Composite Device] on usb-5311400.usb-1/input3
-hid-generic 0003:4842:0001.0003: hiddev96,hidraw2: USB HID v2.01 Device [HAOBO Technology USB Composite Device] on usb-5311400.usb-1/input4
-usbcore: registered new interface driver snd-usb-audio
-```
+In `/etc/boot/orangepiEnv.txt` add:
 
-# Error when USB device disapeear
+```text
+overlays=spi-spidev1
 ```
-Traceback (most recent call last):
-  File "/home/kosiu/audio_hub/./audio_hub.py", line 165, in <module>
-    main()
-  File "/home/kosiu/audio_hub/./audio_hub.py", line 11, in main
-    asyncio.run(s.loop())
-  File "/usr/lib/python3.10/asyncio/runners.py", line 44, in run
-    return loop.run_until_complete(main)
-  File "/usr/lib/python3.10/asyncio/base_events.py", line 646, in run_until_complete
-    return future.result()
-  File "/home/kosiu/audio_hub/./audio_hub.py", line 30, in loop
-    await asyncio.gather(*loops)
-  File "/home/kosiu/audio_hub/./audio_hub.py", line 147, in ir_loop
-    async for event in device.async_read_loop():
-  File "/usr/local/lib/python3.10/dist-packages/evdev/eventio_async.py", line 93, in next_batch_ready
-    future.set_result(next(self.current_batch))
-  File "/usr/local/lib/python3.10/dist-packages/evdev/eventio.py", line 71, in read
-    events = _input.device_read_many(self.fd)
-OSError: [Errno 19] No such device
-```
-
