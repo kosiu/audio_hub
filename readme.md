@@ -1,3 +1,22 @@
+```
+import spidev;from time import sleep;spi = spidev.SpiDev();spi.open(1, 0)
+
+spi.mode # def: 0b00 [CPOL|CPHA], datasheet: 0b00 or 0b11 
+spi.max_speed_hz  # def: 1_000_000
+spi.bits_per_word # def: 8, datasheet:8
+spi.cshigh        # def: False
+spi.loop          # def: False
+spi.no_cs         # def: False
+spi.lsbfirst      # def: False
+spi.threewire     # def: False
+spi.read0         # def: False
+```
+
+# Install
+In `/etc/boot/orangepiEnv.txt` add line:
+
+    overlays=spi-spidev1
+
 # Info
  1. Database of streams: http://fmstream.org/index.php
  
@@ -12,7 +31,7 @@
  1. Web interface and API
 
 # TODO:
- 1. JavaScript to generate "input" and "label" from: "/get_radios" before node "end_radio_list"
+ 1. JavaScript to generate "input" and "label" from: `/get_radios` before node `end_radio_list`
  1. Problem - usb device dissapeared one time (not yeat reproduced)
  1. Investigate why after 3-4 days when device is not rebooted some VLC radios stop to work.
     - [x] reboot every night helps but I don't like it

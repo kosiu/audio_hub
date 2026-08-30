@@ -13,10 +13,10 @@ class System_Led:
             f.write(value)
     def off(self):
         self.set('trigger','none')
-        self.set("brightness", "0") 
+        self.set('brightness', '0') 
     def on(self):
         self.set('trigger','none')
-        self.set("brightness", "1")
+        self.set('brightness', '1')
     def default(self):
         self.off()
         self.set(self.option, self.value)
@@ -24,32 +24,15 @@ class System_Led:
         self.is_blinking = blink
         self.set('trigger','none')
         while self.is_blinking:
-            self.set("brightness", "1")
+            self.set('brightness', '1')
             await asyncio.sleep(on_time)
-            self.set("brightness", "0")
+            self.set('brightness', '0')
             await asyncio.sleep(off_time)
         self.default()
 
-# Current configuration:
-#             audio_hub | function | krn | |header | krn | function | audio_hub
-#  ---------------------|----------|-----|----|----|-----|----------|----------
-#                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | power in+
-#                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut |
-#                       |  I2C SCL | 121 |  5 |  6 |     | GND      |
-#                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  |
-#                       |      GND |     |  9 | 10 | 355 | RX UART  |
-#                       |          | 120 | 11 | 12 | 114 |          |
-#                       |          | 119 | 13 | 14 |     | GND      |
-#                       |          | 362 | 15 | 16 | 111 |          |
-#                       | 3.3V Out |     | 17 | 18 | 112 |          |
-#   led 1 fiber optic 1 | SPI MOSI | 229 | 19 | 20 |     | GND      |
-#   button 5.1 / stereo | SPI MISO | 230 | 21 | 22 | 117 |          |
-# button input selector | SPI  CLK | 228 | 23 | 24 | 227 | SPI CS   | led 3 digital coaxial
-#             power in- |      GND |     | 25 | 26 | 360 | PWM0     | led 2 fiber optic 2
-# 
-# Proposition:
+# GPIO pin configuration:
 #             audio_hub | function | krn || header | krn | function | audio_hub
-#  ---------------------|----------|-----|----|----|-----|----------|----------
+#  --------------------:|---------:|----:|---:|---:|----:|:---------|:---------
 #                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | power in+
 #                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut |
 #                       |  I2C SCL | 121 |  5 |  6 |     | GND      |
@@ -69,9 +52,9 @@ pin_map = { # key: header pin number, value: gpio kernel number
 3:122, 5:121, 7:118,         11:120, 13:119, 15:362,         19:229, 21:230, 23:228        }
 
 # constants
-input_btn = 15 # 23
-surround_btn = 13 # 21
-leds = [11, 16, 12] # [19, 26, 24] # led1, led2, led3
+input_btn = 18 # 16 will be closer to rest of the signals
+surround_btn = 12
+leds = [13, 11, 15] # led1, led2, led3 (pc,tv,coax)
 
 dac_inputs = ['bt', 'pc', 'tv', 'off']
 
@@ -80,8 +63,7 @@ aux_to_select = -1
 
 def init():
     gpio.setmode(pin_map)
-    for led in leds:
-        gpio.setup(led, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
+    gpio.setup(leds, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
     gpio.setup(input_btn,    gpio.OUT, initial=gpio.HIGH)
     gpio.setup(surround_btn, gpio.OUT, initial=gpio.HIGH)
     return get_aux()
@@ -99,14 +81,14 @@ def get_aux():
 
 async def surround_toggle():
     gpio.output(surround_btn, gpio.LOW)
-    await asyncio.sleep(.8)           # 0.08 time of push
+    await asyncio.sleep(.2)           # 0.08 time of push
     gpio.output(surround_btn, gpio.HIGH)
 
 async def next_aux():
     gpio.output(input_btn, gpio.LOW)
-    await asyncio.sleep(.8)           # 0.08 time of push
+    await asyncio.sleep(.2)           # 0.08 time of push
     gpio.output(input_btn, gpio.HIGH)
-    await asyncio.sleep(.9)           # 0.8 time of responce
+    await asyncio.sleep(.8)           # 0.8 time of responce
 
 async def set_aux(aux):
     aux = dac_inputs.index(aux)
