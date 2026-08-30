@@ -1,12 +1,73 @@
 #!/usr/bin/env -S python3 -u
-import asyncio, subprocess, datetime, time, json, signal, os # official python packages
-import evdev, vlc, alsaaudio         # pip installed
-import devices                       # local file require: OPi.GPIO
-import dbus_bluez                    # local file require: dbus_next
+import asyncio, subprocess, datetime, time, json, signal, os, threading # official python packages
+import evdev, vlc                # pip installed
+from camilladsp import CamillaClient
+import devices                   # local file require: OPi.GPIO
+import dbus_bluez                # local file require: dbus_next
 import http_server
 
-USB_AUDIO_CARD = 1
-USB_AUDIO_MIXER = 'Speaker'
+CAMILLA_HOST = '127.0.0.1'
+CAMILLA_PORT = 1234
+CAMILLA_MIN_DB = -60.0
+CAMILLA_MAX_DB = 0.0
+
+class CamillaMixer:
+    def __init__(self, host=CAMILLA_HOST, port=CAMILLA_PORT):
+        self.client = CamillaClient(host, port)
+        self.lock = threading.Lock()
+
+    def _request(self, label, callback):
+        last_error = None
+        for _ in range(2):
+            try:
+                if not self.client.is_connected():
+                    self.client.connect()
+                return callback()
+            except Exception as error:
+                last_error = error
+                try:
+                    self.client.disconnect()
+                except Exception:
+                    pass
+                time.sleep(.1)
+        raise RuntimeError(f'CamillaDSP request failed: {label}') from last_error
+
+    def setvolume(self, volume):
+        with self.lock:
+            volume = max(min(100, int(volume)), 0)
+            if volume == 0:
+                self._request('SetMute', lambda: self.client.volume.set_main_mute(True))
+                return
+            self._request('SetVolume', lambda: self.client.volume.set_main_volume(round(self._percent_to_db(volume), 1)))
+            self._request('SetMute', lambda: self.client.volume.set_main_mute(False))
+
+    def getvolume(self):
+        with self.lock:
+            if self._request('GetMute', lambda: self.client.volume.main_mute()):
+                return [0]
+            return [self._db_to_percent(self._request('GetVolume', lambda: self.client.volume.main_volume()))]
+
+    def close(self):
+        with self.lock:
+            try:
+                if self.client.is_connected():
+                    self.client.disconnect()
+            except Exception:
+                pass
+
+    def _percent_to_db(self, volume):
+        if volume <= 0:
+            return CAMILLA_MIN_DB
+        scale = volume / 100.0
+        return CAMILLA_MIN_DB + (CAMILLA_MAX_DB - CAMILLA_MIN_DB) * scale
+
+    def _db_to_percent(self, volume_db):
+        if volume_db <= CAMILLA_MIN_DB:
+            return 1
+        if volume_db >= CAMILLA_MAX_DB:
+            return 100
+        scale = (volume_db - CAMILLA_MIN_DB) / (CAMILLA_MAX_DB - CAMILLA_MIN_DB)
+        return max(1, min(100, round(scale * 100)))
 
 def main():
     global s
@@ -18,7 +79,7 @@ class State:
         signal.signal(signal.SIGINT,  shutdown_app)
         signal.signal(signal.SIGTERM, shutdown_app)
         self.__init_radios()
-        self.mixer     = alsaaudio.Mixer(USB_AUDIO_MIXER, cardindex=USB_AUDIO_CARD)
+        self.mixer     = CamillaMixer()
         self.update_ui = asyncio.Event()
         self.red_led   = devices.System_Led('red',  'trigger','mmc0')
         self.green_led = devices.System_Led('green','trigger','rc-feedback')
@@ -165,6 +226,8 @@ async def ir_loop(device):
 
 def shutdown_app(signum, frame=None):
     exit_code = 0 if signum != 'restart' else 121
+    try: s.mixer.close()
+    except Exception as error: print('Error when disconnecting CamillaDSP: ',error)
     dbus_bluez.exit()
     try: devices.end()
     except OSError as error: print('Error when stopping GPIO: ',error)

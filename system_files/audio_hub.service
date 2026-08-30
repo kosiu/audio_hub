@@ -1,12 +1,13 @@
 [Unit]
 Description=Audio hub for internet radio and bluetooth
-After=network-online.target
-Requires=network-online.target
+After=network-online.target camilladsp.service
+Requires=network-online.target camilladsp.service
 
 
 [Service]
 Type=simple
 User=kosiu
+Environment=HOME=/home/kosiu
 ExecStart=/home/kosiu/audio_hub/audio_hub.sh
 
 [Install]

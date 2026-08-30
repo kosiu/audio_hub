@@ -1,0 +1,66 @@
+---
+title: "Audio Hub minimal 6ch"
+description: "First Audio Hub 2.0 CamillaDSP config. Stereo from ALSA loopback in, six channels to the USB card out."
+
+devices:
+  samplerate: 48000
+  chunksize: 1024
+  capture:
+    type: Alsa
+    channels: 2
+    device: "hw:Loopback,0,0"
+    format: S16_LE
+  playback:
+    type: Alsa
+    channels: 6
+    device: "hw:ICUSBAUDIO7D"
+    format: S16_LE
+
+mixers:
+  stereo_to_6:
+    description: "Mirror the old ALSA route while moving channel mapping into CamillaDSP"
+    channels:
+      in: 2
+      out: 6
+    mapping:
+      - dest: 0
+        sources:
+          - channel: 0
+            gain: 0.0
+            inverted: false
+      - dest: 1
+        sources:
+          - channel: 1
+            gain: 0.0
+            inverted: false
+      - dest: 2
+        sources:
+          - channel: 0
+            gain: -6.0
+            inverted: false
+          - channel: 1
+            gain: -6.0
+            inverted: false
+      - dest: 3
+        sources:
+          - channel: 0
+            gain: -6.0
+            inverted: false
+          - channel: 1
+            gain: -6.0
+            inverted: false
+      - dest: 4
+        sources:
+          - channel: 0
+            gain: 0.0
+            inverted: false
+      - dest: 5
+        sources:
+          - channel: 1
+            gain: 0.0
+            inverted: false
+
+pipeline:
+  - type: Mixer
+    description: "Expand stereo input to the current 6 channel speaker layout"
+    name: stereo_to_6

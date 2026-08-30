@@ -29,6 +29,7 @@ GPIO still not conected which means:
    CamillaDSP, while filters, balancing, remapping, and 6 channel output live
    in CamillaDSP.
 6. Version 1.0 is described here: [AudioHub v1.0](doc/v1_documentation.md)
+7. Current target pipeline: `VLC/bluealsa-aplay -> ALSA loopback 2ch -> CamillaDSP -> USB ALSA 6ch`
 
 
 ## Current Notes
@@ -65,7 +66,9 @@ KEY_COMPOSE
 
 ```text
 pip install OPi.GPIO dbus-next
-pip install evdev python-vlc pyalsaaudio
+python3 -m pip install --user --upgrade pip setuptools wheel
+pip install evdev python-vlc
+python3 -m pip install --user git+https://github.com/HEnquist/pycamilladsp.git
 pip install uvicorn fastapi sse-starlette
 ```
 
@@ -82,12 +85,27 @@ overlays=spi-spidev1
 3. Archive downloaded to: `/home/kosiu/Downloads/camilladsp-linux-aarch64.tar.gz`
 4. Installed to: `/home/kosiu/opt/camilladsp-v4.1.3/camilladsp`
 5. Tracked systemd unit: `system_files/camilladsp.service`
-6. Service starts websocket on `127.0.0.1:1234`, waits for config, keeps
+6. Service starts websocket on `127.0.0.1:1234`, loads
+   `/home/kosiu/camilladsp/default_config.yml`, keeps
    state in `/home/kosiu/camilladsp/statefile.yml`, and logs to
    `/home/kosiu/camilladsp/camilladsp.log`
-7. Install it with root privileges:
+7. First tracked config: `camilladsp_minimal.yml`
+8. Minimal live config copied to:
+   `/home/kosiu/camilladsp/default_config.yml`
+9. Minimal live config also copied to:
+   `/home/kosiu/camilladsp/configs/audio_hub_minimal.yml`
+10. Minimal config captures stereo from `hw:Loopback,0,0` and plays 6 channels to
+    `hw:ICUSBAUDIO7D`
+11. To make the loopback card appear after boot, install:
+    `sudo cp /home/kosiu/audio_hub/system_files/camilladsp-aloop.conf /etc/modules-load.d/`
+12. Replace `/etc/asound.conf` with the tracked thin loopback handoff so VLC and
+    `bluealsa-aplay` feed CamillaDSP:
+    `sudo cp /home/kosiu/audio_hub/system_files/asound.conf /etc/asound.conf`
+13. Audio Hub uses the Python CamillaDSP client to control main volume over the
+   local websocket.
+14. Install it with root privileges:
    `sudo cp /home/kosiu/audio_hub/system_files/camilladsp.service /etc/systemd/system/`
-8. Then enable it:
+15. Then enable it:
    `sudo systemctl daemon-reload && sudo systemctl enable --now camilladsp.service`
 
 ### CamillaGUI
@@ -106,3 +124,9 @@ overlays=spi-spidev1
    `sudo cp /home/kosiu/audio_hub/system_files/camillagui.service /etc/systemd/system/`
 11. Then enable it:
    `sudo systemctl daemon-reload && sudo systemctl enable --now camillagui.service`
+
+### Audio Hub runtime
+
+1. Tracked systemd unit: `system_files/audio_hub.service`
+2. Starts after `camilladsp.service` because volume control now uses the local
+   CamillaDSP websocket.

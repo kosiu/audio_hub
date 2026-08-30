@@ -1,4 +1,4 @@
-# Audio Hub 1.0
+# Audio Hub 2.0
 
 ## Purpose
 
@@ -27,7 +27,7 @@ It drives:
 
 1. The DAC input selector through GPIO button emulation.
 2. The DAC input state detection through GPIO reads of LED lines.
-3. ALSA volume.
+3. CamillaDSP main volume over the Python websocket client.
 4. VLC internet radio playback.
 5. BlueZ pairing mode and Bluetooth audio sink playback.
 
@@ -181,7 +181,9 @@ Implication for Hardware 2.0:
 | `system_files/audio_hub.service` | Systemd unit for boot startup | Active | Medium |
 | `system_files/camilladsp.service` | Systemd unit for CamillaDSP engine | Active | High |
 | `system_files/camillagui.service` | Systemd unit for CamillaGUI backend | Active | Medium |
+| `system_files/camilladsp-aloop.conf` | Loads the ALSA loopback kernel module at boot | Active | High |
 | `system_files/bluez-alsa` | Enables A2DP sink mode | Active | High |
+| `system_files/asound.conf` | Thin ALSA handoff from app playback into CamillaDSP loopback | Active | High |
 | `system_files/99-gpio.rules` | Grants GPIO and LED sysfs access | Active | Critical |
 | `system_files/custom.toml` | Custom remote keymap | Active | Medium |
 | `system_files/lg.toml` | LG remote keymap | Active | Medium |
@@ -342,7 +344,7 @@ Why it matters:
 Main responsibilities:
 
 1. Load radio definitions from `radios.json`.
-2. Create an ALSA mixer on `Master`.
+2. Control CamillaDSP main volume over websocket at `127.0.0.1:1234`.
 3. Start `http_server.run_thread(self)`.
 4. Start Bluetooth monitoring with `dbus_bluez.init()`.
 5. Scan evdev devices and attach async loops.
@@ -440,12 +442,14 @@ Key pieces:
 
 1. `99-gpio.rules` grants access to GPIO and LED sysfs nodes.
 Without it, `devices.py` and `System_Led` will fail under a normal service user.
-2. `audio_hub.service` starts the wrapper script at boot after the network comes up.
+2. `audio_hub.service` starts the wrapper script at boot after the network and `camilladsp.service` come up.
 3. `camilladsp.service` starts the DSP engine with websocket, statefile, and log file support.
-4. `camillagui.service` starts the CamillaGUI backend at boot so the browser UI is reachable over the LAN.
-5. `bluez-alsa` enables A2DP sink behavior.
-6. `custom.toml`, `lg.toml`, and `rc_maps.cfg` translate remote scancodes into Linux key events that `audio_hub.py` understands.
-7. `logind.conf` sets `HandlePowerKey=ignore`, which avoids conflict with remote or front-panel power semantics.
+4. `camilladsp-aloop.conf` loads `snd-aloop`, which is the software bridge from VLC and Bluetooth into CamillaDSP.
+5. `camillagui.service` starts the CamillaGUI backend at boot so the browser UI is reachable over the LAN.
+6. `bluez-alsa` enables A2DP sink behavior.
+7. `asound.conf` should stay minimal and point default stereo playback to `hw:Loopback,1,0`.
+8. `custom.toml`, `lg.toml`, and `rc_maps.cfg` translate remote scancodes into Linux key events that `audio_hub.py` understands.
+9. `logind.conf` sets `HandlePowerKey=ignore`, which avoids conflict with remote or front-panel power semantics.
 
 ## Obsolete, Stale, Or Historical Items
 
