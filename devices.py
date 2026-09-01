@@ -36,7 +36,7 @@ class System_Led:
 #                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | power in+
 #                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut |
 #                       |  I2C SCL | 121 |  5 |  6 |     | GND      |
-#                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  |
+#                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  | amp STB
 #                       |      GND |     |  9 | 10 | 355 | RX UART  |
 #   led 1 fiber optic 1 |          | 120 | 11 | 12 | 114 |          | led 3 digital coaxial
 #                unused |          | 119 | 13 | 14 |     | GND      | power in-
@@ -52,11 +52,16 @@ pin_map = { # key: header pin number, value: gpio kernel number
 3:122, 5:121, 7:118,         11:120, 13:119, 15:362,         19:229, 21:230, 23:228        }
 
 # constants
+amp_standby = 8
 input_btn = 18 # 16 will be closer to rest of the signals
 leds = [13, 11, 15] # led1, led2, led3 (pc,tv,coax)
 
 dac_inputs = ['bt', 'pc', 'tv', 'off']
+off_aux = dac_inputs.index('off')
 AUX_STATE_PATH = '/dev/shm/aux'
+
+def _set_amp_active(active):
+    gpio.output(amp_standby, gpio.HIGH if active else gpio.LOW)
 
 def _read_cached_aux(default=0):
     try:
@@ -82,6 +87,7 @@ aux_to_select = -1
 
 def init():
     gpio.setmode(pin_map)
+    gpio.setup(amp_standby, gpio.OUT, initial=gpio.LOW)
     # DAC GPIO connector is disconnected during the 2.0 migration.
     # Uncomment the lines below when the external selector wiring is back.
     # gpio.setup(leds, gpio.IN)#, pull_up_down=gpio.PUD_OFF) # Not working yeat?
@@ -89,6 +95,10 @@ def init():
     return get_aux()
 
 def end():
+    try:
+        _set_amp_active(False)
+    except Exception:
+        pass
     gpio.cleanup()
 
 def get_aux():
@@ -121,8 +131,9 @@ async def set_aux(aux):
 
     try:
         # DAC selector connector is unplugged during migration.
-        # Keep the requested source only in software for now.
+        # Keep the requested source in software and drive amp standby directly.
         _write_aux_state(aux_to_select)
+        _set_amp_active(aux_to_select != off_aux)
         print('DAC selector GPIO disconnected, cached request only')
         return
 

@@ -6,15 +6,15 @@ Diagram:
 
 ![Audio Hub 2.0 hardware view](doc/hardware.svg)
 
-GPIO still not conected which means:
+GPIO migration status:
 
-1. STB (standby activated with LO) doesn't work no saving energy
+1. STB on header pin 8 is now driven by the app. `LOW` keeps the amplifier in standby and `HIGH` enables it.
 2. Optical switch set on auto (not perfect) - work simmilar to pevious switch
    by cycling Auto, Ch1, Ch2... pushing button
 3. Important is that even in Alsamixer volume is set to 0 it is still laud
 4. I don't have active filters on subwoofer, other speakers has it, but minimal one
 5. I messup connection of speakers (swaped central with subwoofer)
-6. During migration DAC GPIO selector and LED feedback stay commented out in
+6. During migration DAC GPIO selector and LED feedback still stay commented out in
    `devices.py`. Uncomment only those lines when the external connector is back.
 
 ## Software migration
