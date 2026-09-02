@@ -5,6 +5,7 @@ from pathlib import Path
 def main():
     src = [
         Path('/etc/default/bluez-alsa'),
+        Path('/etc/modprobe.d/alsa-loopback.conf'),
         Path('/etc/modules-load.d/camilladsp-aloop.conf'),
         Path('/etc/systemd/system/audio_hub.service'),
         Path('/etc/systemd/system/camilladsp.service'),
