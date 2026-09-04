@@ -7,14 +7,14 @@ devices:
     device: full_8ch
     format: S16_LE
     labels:
-    - F_L
-    - F_R
-    - center
-    - LFE
-    - RL
-    - RR
-    - left
-    - right
+    - 1 FL
+    - 1 FR
+    - 1 CT
+    - 1 LFE
+    - 1 RL
+    - 1 RR
+    - 2 L
+    - 2 R
     link_mute_control: null
     link_volume_control: null
     stop_on_inactive: null
@@ -78,12 +78,12 @@ mixers:
     description: Mix direct 5.1 surround with expanded stereo into the current 6 channel
       speaker layout
     labels:
-    - front_left
-    - front_right
-    - subwoofer
-    - center
-    - rear_left
-    - rear_right
+    - FL
+    - FR
+    - LFE
+    - CT
+    - RL
+    - RR
     mapping:
     - dest: 0
       mute: null

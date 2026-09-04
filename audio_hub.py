@@ -4,7 +4,7 @@ import evdev, vlc                # pip installed
 from camilladsp import CamillaClient
 import devices                   # local file require: OPi.GPIO
 import dbus_bluez                # local file require: dbus_next
-import http_server
+import http_server               # local file require: dbus_next
 
 CAMILLA_HOST = '127.0.0.1'
 CAMILLA_PORT = 1234

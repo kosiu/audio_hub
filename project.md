@@ -2,14 +2,16 @@
 
 ## Purpose
 
-Audio Hub 1.0 is an OrangePi-based home audio switcher and local audio source.
+Audio Hub 1.0 is an OrangePi-based home audio switcher, local audio source, and
+now the migration target for a digital surround ingest path.
 
-It combines four jobs:
+It combines five jobs:
 
 1. Select the active DAC input.
 2. Produce local audio for internet radio and Bluetooth sink.
-3. Expose control through IR remote and HTTP API.
-4. Mirror a small part of the hardware state back into software.
+3. Receive digital audio from the optical switch input.
+4. Expose control through IR remote and HTTP API.
+5. Mirror a small part of the hardware state back into software.
 
 The current system is built around a physical DAC and amplifier chain, not around pure software routing.
 
@@ -30,15 +32,19 @@ It drives:
 3. CamillaDSP main volume over the Python websocket client.
 4. VLC internet radio playback.
 5. BlueZ pairing mode and Bluetooth audio sink playback.
+6. `ffmpeg` decode for incoming SPDIF/TOSLINK surround audio.
 
 Audio path summary:
 
 1. OrangePi produces local audio for radio and Bluetooth sink.
-2. OrangePi analog/internal audio output goes into one DAC input.
-3. PC and TV are connected to two DAC digital inputs.
-4. One DAC digital input is intentionally used as a silent or off state.
-5. DAC output goes to the 5.1 amplifier.
-6. Amplifier output goes to speakers.
+2. The optical switch output is the temporary digital surround input.
+3. `ffmpeg` decodes the incoming digital stream into 6 channel PCM.
+4. ALSA exposes one 8 channel capture contract named `full_8ch`.
+5. Channels `0..5` of `full_8ch` are reserved for the decoded digital feed.
+6. Channels `6..7` of `full_8ch` are reserved for OrangePi local stereo.
+7. CamillaDSP mixes that 8 channel input down to the current 6 speaker outputs.
+8. DAC output goes to the 5.1 amplifier.
+9. Amplifier output goes to speakers.
 
 Important naming note:
 
@@ -125,13 +131,50 @@ Current contract:
 1. VLC plays internet radio streams.
 2. `bluealsa-aplay` plays Bluetooth sink audio.
 3. Both rely on the OrangePi audio stack.
-4. Both share one physical DAC input path.
+4. Both feed the last two channels of the aggregated `full_8ch` input.
+5. CamillaDSP is responsible for turning that stereo pair into the current
+	6 speaker layout when needed.
 
 Implication for Hardware 2.0:
 
 1. Bluetooth and internet radio are not independent hardware inputs.
 2. They are software sources mixed into one local hardware path.
 3. Keep that distinction clear in naming and UI.
+4. Keep the local stereo contract stable even when the digital input path changes.
+
+### 3a. Digital SPDIF / TOSLINK ingest interface
+
+Owned by the SPDIF receiver path, `ffmpeg`, ALSA loopback routing, and
+CamillaDSP input mapping.
+
+Current target contract:
+
+1. The optical switch output should feed one SPDIF/TOSLINK input.
+2. `ffmpeg` should read that input and decode supported bitstreams to PCM.
+3. The decoded PCM should be normalized to a 6 channel stream.
+4. That 6 channel stream should land on channels `0..5` of `full_8ch`.
+5. The local stereo path should remain on channels `6..7` of `full_8ch`.
+6. CamillaDSP should see one stable 8 channel capture device regardless of the
+	source format upstream.
+
+Recommended policy for non-5.1 incoming digital audio:
+
+1. `5.1`: keep channel order and pass through directly.
+2. `5.0`: keep channel order and leave LFE empty unless you deliberately add
+	bass management later.
+3. `2.0`: prefer a controlled stereo expansion in CamillaDSP instead of asking
+	`ffmpeg` to invent a surround field.
+4. `1.0`: route to center or dual-mono front left and front right.
+5. Unsupported, invalid, or unstable streams: mute channels `0..5` and keep the
+	local stereo path alive.
+
+Reasoning:
+
+1. `ffmpeg` is the right place to decode and normalize transport formats.
+2. CamillaDSP is the right place to implement speaker mapping, crossover,
+	protection, EQ, and optional upmix policy.
+3. This separation keeps the ALSA and CamillaDSP side stable while the digital
+	receiver path evolves.
 
 ### 4. Input devices
 
@@ -158,6 +201,8 @@ Implication for Hardware 2.0:
 | `audio_hub.sh` | Restarts `audio_hub.py` when it exits with code `121` | Active | Medium |
 | `devices.py` | GPIO contract with DAC buttons and DAC LED sensing | Active | Critical |
 | `dbus_bluez.py` | BlueZ pairing control and Bluetooth sink helper processes | Active | High |
+| `main.yaml` | Current 8 input CamillaDSP config using `full_8ch` | Active | High |
+| `camilladsp_minimal.yml` | Alternate tracked CamillaDSP config snapshot | Active | Medium |
 | `http_server.py` | REST API, SSE updates, static file serving | Active | Medium |
 | `radios.json` | Radio station list | Active | Low |
 | `system_cfg.py` | Copies tracked system files into repo | Support | Low |
@@ -349,6 +394,7 @@ Main responsibilities:
 4. Start Bluetooth monitoring with `dbus_bluez.init()`.
 5. Scan evdev devices and attach async loops.
 6. Translate button presses into normalized actions.
+7. Coordinate local-source behavior with the digital input path.
 
 Action model:
 
@@ -372,6 +418,8 @@ Migration concerns:
 1. Local audio source and physical input are mixed into one field.
 2. Restart logic encodes operational workarounds, not core product behavior.
 3. Device-name matching in `ir_loops()` is hardware-specific.
+4. The runtime should eventually know whether the active audio is local stereo
+	or decoded digital surround.
 
 Suggested Hardware 2.0 target:
 
@@ -444,10 +492,10 @@ Key pieces:
 Without it, `devices.py` and `System_Led` will fail under a normal service user.
 2. `audio_hub.service` starts the wrapper script at boot after the network and `camilladsp.service` come up.
 3. `camilladsp.service` starts the DSP engine with websocket, statefile, and log file support.
-4. `camilladsp-aloop.conf` loads `snd-aloop`, which is the software bridge from VLC and Bluetooth into CamillaDSP.
+4. `camilladsp-aloop.conf` loads `snd-aloop`, which is the software bridge for local stereo and the decoded digital surround feed into CamillaDSP.
 5. `camillagui.service` starts the CamillaGUI backend at boot so the browser UI is reachable over the LAN.
 6. `bluez-alsa` enables A2DP sink behavior.
-7. `asound.conf` should stay minimal and point default stereo playback to `hw:Loopback,1,0`.
+7. `asound.conf` defines the aggregated `full_8ch` capture device and should keep the local stereo default path simple.
 8. `custom.toml`, `lg.toml`, and `rc_maps.cfg` translate remote scancodes into Linux key events that `audio_hub.py` understands.
 9. `logind.conf` sets `HandlePowerKey=ignore`, which avoids conflict with remote or front-panel power semantics.
 
@@ -478,9 +526,11 @@ Suggested starting names: `local`, `pc`, `tv`, `mute`.
 4. Keep a thin adapter layer that preserves today’s software API until the rest of the app is cleaned up.
 5. Split local-source selection from physical-input selection in the runtime state.
 6. Decide whether Bluetooth still uses `bluez-alsa` or moves to a different audio backend.
-7. Move hard-coded hardware constants, GPIO maps, device names, and timing values into configuration.
-8. Keep the HTTP API small and backward compatible unless there is a strong reason to break it.
-9. Re-evaluate the reboot workaround after audio stack and hardware changes.
+7. Define and document the `ffmpeg` SPDIF ingest service boundary before adding more DSP features.
+8. Decide and document the fallback policy for non-5.1 digital content.
+9. Move hard-coded hardware constants, GPIO maps, device names, and timing values into configuration.
+10. Keep the HTTP API small and backward compatible unless there is a strong reason to break it.
+11. Re-evaluate the reboot workaround after audio stack and hardware changes.
 
 ## Recommended Rename Map For Future Refactor
 

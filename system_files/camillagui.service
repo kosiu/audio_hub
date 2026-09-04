@@ -6,10 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=kosiu
-WorkingDirectory=/home/kosiu/opt/camillagui-v4.1.0/camillagui_backend
 Environment=HOME=/home/kosiu
-ExecStartPre=/usr/bin/mkdir -p /home/kosiu/camilladsp/configs /home/kosiu/camilladsp/coeffs
-ExecStart=/home/kosiu/opt/camillagui-v4.1.0/camillagui_backend/camillagui_backend
+WorkingDirectory=/home/kosiu/camilladsp
+ExecStart       =/home/kosiu/camilladsp/camillagui_backend
 Restart=on-failure
 RestartSec=2
 
