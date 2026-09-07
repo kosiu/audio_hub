@@ -91,3 +91,50 @@ overlays=spi-spidev1
 3. Unpacked to: `/home/kosiu/camilladsp/`
 4. GUI served at: `http://127.0.0.1:5005`
 
+## Ideas for TV optical decoding
+
+Adding optical snoop channel wich copy same data usful if 2 programs should read
+~~~
+# /etc/asound.conf addition
+pcm.opt_dsnoop {
+    type dsnoop
+    ipc_key 5566
+    slave {
+        pcm "hw:CARD=ICUSBAUDIO7D,DEV=0"
+        channels 2
+        rate 48000
+        format S16_LE
+    }
+}
+~~~
+
+Passing 5.1 channels:
+~~~
+arecord -D plughw:CARD=ICUSBAUDIO7D,DEV=0 -f S16_LE -r 48000 -c 2 -t raw \
+  --buffer-time=5000 --period-time=1000 | \
+ffmpeg -hide_banner -loglevel warning -probesize 32 -analyzeduration 0 \
+  -fflags nobuffer -flags low_delay -f spdif -i - \
+  -af "aresample=async=1:out_channel_layout=5.1,pan=5.1|c0=c0|c1=c1|c2=c4|c3=c5|c4=c2|c5=c3" \
+  -c:a pcm_s16le -f alsa Surround
+~~~
+
+Passing Stereo:
+~~~
+ffmpeg -hide_banner -loglevel warning -fflags nobuffer -flags low_delay \
+  -f alsa -thread_queue_size 1024 -i plughw:CARD=ICUSBAUDIO7D,DEV=0 \
+  -c:a pcm_s16le -f alsa Stereo
+~~~
+
+Display row channels:
+~~~
+arecord -D hw:ICUSBAUDIO7D -f S16_LE -c 2 -r 48000 -d 1 -t raw -q - | od
+~~~
+
+Detecting:
+~~~
+arecord -q -D plughw:CARD=ICUSBAUDIO7D,DEV=0 -f S16_LE -r 48000 -c 2 -t raw \
+    --buffer-time=50000 --period-time=10000 --samples=9600 2>/dev/null | \
+  ffprobe -v error -analyzeduration 0 -probesize 32 -f spdif -i pipe:0 \
+    -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 2>/dev/null
+~~~
+

@@ -33,19 +33,19 @@ class System_Led:
 # GPIO pin configuration:
 #             audio_hub | function | krn || header | krn | function | audio_hub
 #  --------------------:|---------:|----:|---:|---:|----:|:---------|:---------
-#                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | power in+
-#                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut |
-#                       |  I2C SCL | 121 |  5 |  6 |     | GND      |
+#                       | 3.3V Out |     |  1 |  2 |     | 5V InOut | 
+#                       |  I2C SDA | 122 |  3 |  4 |     | 5V InOut | power in+
+#                       |  I2C SCL | 121 |  5 |  6 |     | GND      | power in-
 #                       |     PWM1 | 118 |  7 |  8 | 354 | TX UART  | amp STB
-#                       |      GND |     |  9 | 10 | 355 | RX UART  |
-#   led 1 fiber optic 1 |          | 120 | 11 | 12 | 114 |          | led 3 digital coaxial
-#                unused |          | 119 | 13 | 14 |     | GND      | power in-
-# button input selector |          | 362 | 15 | 16 | 111 |          | led 2 fiber optic 2
-#            volume VCC | 3.3V Out |     | 17 | 18 | 112 |          |
+#                       |      GND |     |  9 | 10 | 355 | RX UART  | 
+#                       |          | 120 | 11 | 12 | 114 |          |                      
+#                       |          | 119 | 13 | 14 |     | GND      |          
+#                       |          | 362 | 15 | 16 | 111 |          |                    
+#                       | 3.3V Out |     | 17 | 18 | 112 |          |
 #                       | SPI MOSI | 229 | 19 | 20 |     | GND      | 
-#            volume  DI | SPI MISO | 230 | 21 | 22 | 117 |          | 
-#            volume CLK | SPI  CLK | 228 | 23 | 24 | 227 | SPI CS   | volume CS
-#            volume GND |      GND |     | 25 | 26 | 360 | PWM0     | 
+#                       | SPI MISO | 230 | 21 | 22 | 117 |          | 
+#                       | SPI  CLK | 228 | 23 | 24 | 227 | SPI CS   |          
+#                       |      GND |     | 25 | 26 | 360 | PWM0     | 
 # 
 pin_map = { # key: header pin number, value: gpio kernel number
               8:354, 10:355, 12:114,         16:111, 18:112,         22:117, 24:227, 26:360, 

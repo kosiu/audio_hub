@@ -44,7 +44,7 @@ filters:
     description: null
     parameters:
       freq: 85
-      gain: 2
+      gain: 1
       q: 0.9
       type: Lowshelf
     type: Biquad
@@ -52,7 +52,7 @@ filters:
     description: null
     parameters:
       freq: 6500
-      gain: 2
+      gain: 1
       q: 0.7
       type: Highshelf
     type: Biquad
@@ -71,6 +71,67 @@ filters:
       type: Lowpass
     type: Biquad
 mixers:
+  connectiion_fix:
+    channels:
+      in: 6
+      out: 6
+    description: Connection fix
+    labels:
+    - ch1
+    - ch2
+    - LFE
+    - CT
+    - ch3
+    - ch4
+    mapping:
+    - dest: 5
+      mute: false
+      sources:
+      - channel: 0
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
+    - dest: 4
+      mute: true
+      sources:
+      - channel: 4
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
+    - dest: 2
+      mute: true
+      sources:
+      - channel: 2
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
+    - dest: 3
+      mute: true
+      sources:
+      - channel: 3
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
+    - dest: 0
+      mute: true
+      sources:
+      - channel: 5
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
+    - dest: 1
+      mute: false
+      sources:
+      - channel: 1
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
   to_6:
     channels:
       in: 8
@@ -209,5 +270,9 @@ pipeline:
   names:
   - speakers_highpass
   type: Filter
+- bypassed: null
+  description: null
+  name: connectiion_fix
+  type: Mixer
 processors: {}
 title: Audio Hub minimal 8in 6out
