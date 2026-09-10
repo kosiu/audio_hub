@@ -44,7 +44,7 @@ filters:
     description: null
     parameters:
       freq: 85
-      gain: 1
+      gain: 0
       q: 0.9
       type: Lowshelf
     type: Biquad
@@ -52,18 +52,18 @@ filters:
     description: null
     parameters:
       freq: 6500
-      gain: 1
+      gain: 0
       q: 0.7
       type: Highshelf
     type: Biquad
-  speakers_highpass:
+  "\u2581\u2581\u2571\u2594\u2594 high":
     description: Small pilot speakers highpass
     parameters:
       freq: 120
       q: 0.707
       type: Highpass
     type: Biquad
-  subwoofer_lowpass:
+  "\u2594\u2594\u2572\u2581\u2581 low":
     description: Subwoofer lowpass
     parameters:
       freq: 120
@@ -93,7 +93,7 @@ mixers:
         mute: false
         scale: dB
     - dest: 4
-      mute: true
+      mute: false
       sources:
       - channel: 4
         gain: 0
@@ -101,7 +101,7 @@ mixers:
         mute: false
         scale: dB
     - dest: 2
-      mute: true
+      mute: false
       sources:
       - channel: 2
         gain: 0
@@ -109,7 +109,7 @@ mixers:
         mute: false
         scale: dB
     - dest: 3
-      mute: true
+      mute: false
       sources:
       - channel: 3
         gain: 0
@@ -117,7 +117,7 @@ mixers:
         mute: false
         scale: dB
     - dest: 0
-      mute: true
+      mute: false
       sources:
       - channel: 5
         gain: 0
@@ -147,7 +147,7 @@ mixers:
     - RR
     mapping:
     - dest: 0
-      mute: null
+      mute: false
       sources:
       - channel: 0
         gain: 0
@@ -160,7 +160,7 @@ mixers:
         mute: null
         scale: null
     - dest: 1
-      mute: null
+      mute: false
       sources:
       - channel: 1
         gain: 0
@@ -176,7 +176,7 @@ mixers:
       mute: null
       sources:
       - channel: 3
-        gain: 0
+        gain: 6
         inverted: false
         mute: null
         scale: null
@@ -190,8 +190,33 @@ mixers:
         inverted: false
         mute: null
         scale: null
+      - channel: 0
+        gain: 6
+        inverted: false
+        mute: false
+        scale: dB
+      - channel: 1
+        gain: 6
+        inverted: false
+        mute: false
+        scale: dB
+      - channel: 2
+        gain: 6
+        inverted: false
+        mute: false
+        scale: dB
+      - channel: 4
+        gain: 6
+        inverted: false
+        mute: false
+        scale: dB
+      - channel: 5
+        gain: 6
+        inverted: false
+        mute: false
+        scale: dB
     - dest: 3
-      mute: null
+      mute: false
       sources:
       - channel: 2
         gain: 0
@@ -209,7 +234,7 @@ mixers:
         mute: null
         scale: null
     - dest: 4
-      mute: null
+      mute: false
       sources:
       - channel: 4
         gain: 0
@@ -222,7 +247,7 @@ mixers:
         mute: null
         scale: null
     - dest: 5
-      mute: null
+      mute: false
       sources:
       - channel: 5
         gain: 0
@@ -257,7 +282,7 @@ pipeline:
   - 2
   description: Protect the physical subwoofer with a lowpass
   names:
-  - subwoofer_lowpass
+  - "\u2594\u2594\u2572\u2581\u2581 low"
   type: Filter
 - bypassed: null
   channels:
@@ -268,7 +293,7 @@ pipeline:
   - 5
   description: Protect the other speakers with a matching highpass
   names:
-  - speakers_highpass
+  - "\u2581\u2581\u2571\u2594\u2594 high"
   type: Filter
 - bypassed: null
   description: null

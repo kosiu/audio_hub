@@ -87,6 +87,7 @@ class State:
         http_server.run_thread(self)
 
     async def loop(self):
+        self.main_loop = asyncio.get_running_loop()
         loops = ir_loops()
         asyncio.create_task(dbus_bluez.init(self.red_led))
         asyncio.create_task(self.__shedule_player_restart())
@@ -98,7 +99,7 @@ class State:
         if type(action) == int or action.isdigit(): self.__set_radio(int(action))
         elif action in devices.dac_inputs: self.__set_dac_in(action)
         elif action == 'reboot': subprocess.Popen('reboot')
-        elif action == 'pair':   asyncio.create_task(dbus_bluez.enable_pairing())
+        elif action == 'pair': asyncio.run_coroutine_threadsafe(dbus_bluez.enable_pairing(), self.main_loop)
         else: print(f'Unknown action: {action}')
 
     def set_volume(self, volume):
