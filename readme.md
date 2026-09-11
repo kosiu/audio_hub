@@ -65,8 +65,11 @@ KEY_COMPOSE
 ```
 
 ## Installation
+```bash
+apt install libavformat-dev libavcodec-dev libavutil-dev libswresample-dev
+```
 
-```text
+```bash
 pip install OPi.GPIO dbus-next
 python3 -m pip install --user --upgrade pip setuptools wheel
 pip install evdev python-vlc

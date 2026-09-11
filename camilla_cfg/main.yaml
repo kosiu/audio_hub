@@ -40,6 +40,14 @@ devices:
   volume_ramp_time: null
   worker_threads: null
 filters:
+  5.1 volume:
+    description: null
+    parameters:
+      gain: 12
+      inverted: false
+      mute: false
+      scale: dB
+    type: Gain
   Bass:
     description: null
     parameters:
@@ -271,6 +279,18 @@ pipeline:
   description: null
   names:
   - Treble
+  type: Filter
+- bypassed: null
+  channels:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  description: null
+  names:
+  - 5.1 volume
   type: Filter
 - bypassed: null
   description: Combine direct surround and expanded stereo into the current 6 channel
