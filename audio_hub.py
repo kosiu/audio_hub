@@ -10,6 +10,9 @@ CAMILLA_HOST = '127.0.0.1'
 CAMILLA_PORT = 1234
 CAMILLA_MIN_DB = -60.0
 CAMILLA_MAX_DB = 0.0
+TOSLINK_PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'toslink_play')
+TOSLINK_LOG = '/home/kosiu/toslink_play.log'
+INPUTS = ('bt', 'pc', 'tv', 'off')
 
 class CamillaMixer:
     def __init__(self, host=CAMILLA_HOST, port=CAMILLA_PORT):
@@ -80,6 +83,8 @@ class State:
         signal.signal(signal.SIGTERM, shutdown_app)
         self.__init_radios()
         self.mixer     = CamillaMixer()
+        self.toslink_player = None
+        self.toslink_lock = threading.Lock()
         self.update_ui = asyncio.Event()
         self.red_led   = devices.System_Led('red',  'trigger','mmc0')
         self.green_led = devices.System_Led('green','trigger','rc-feedback')
@@ -97,7 +102,7 @@ class State:
     def set_action(self, action):
         print(f'Action: {action}')
         if type(action) == int or action.isdigit(): self.__set_radio(int(action))
-        elif action in devices.dac_inputs: self.__set_dac_in(action)
+        elif action in INPUTS: self.__set_input(action)
         elif action == 'reboot': subprocess.Popen('reboot')
         elif action == 'pair': asyncio.run_coroutine_threadsafe(dbus_bluez.enable_pairing(), self.main_loop)
         else: print(f'Unknown action: {action}')
@@ -116,16 +121,65 @@ class State:
     def get_ui_state(self): return dict(input=self.input,volume=self.get_volume())
 
     def __set_radio(self, channel):
-        asyncio.create_task(devices.set_aux('bt'))
+        self.stop_toslink_player()
+        devices.set_amp_active(True)
         self.player.play_item_at_index(channel)
         self.input = channel
         self.update_ui.set()
 
-    def __set_dac_in(self, ext_in):
+    def __set_input(self, source):
         self.player.stop()
-        asyncio.create_task(devices.set_aux(ext_in))
-        self.input = ext_in
+        if source == 'tv':
+            devices.set_amp_active(False)
+            self.__start_toslink_player()
+        else:
+            self.stop_toslink_player()
+            devices.set_amp_active(source != 'off')
+        self.input = source
         self.update_ui.set()
+
+    def __start_toslink_player(self):
+        with self.toslink_lock:
+            if self.toslink_player is not None and self.toslink_player.poll() is None:
+                return
+            with open(TOSLINK_LOG, 'a') as log_file:
+                self.toslink_player = subprocess.Popen(
+                    [TOSLINK_PLAYER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=log_file, text=True, bufsize=1)
+            player = self.toslink_player
+            threading.Thread(target=self.__monitor_toslink_player, args=(player,), daemon=True).start()
+            try:
+                self.toslink_player.stdin.write('\n')
+                self.toslink_player.stdin.flush()
+            except BrokenPipeError:
+                pass
+
+    def __monitor_toslink_player(self, player):
+        for line in player.stdout:
+            signal_type = line.strip()
+            print(f'TOSLINK signal: {signal_type}')
+            if signal_type not in ('off', 'none', 'pcm', 'ac3'):
+                continue
+            with self.toslink_lock:
+                if self.toslink_player is not player:
+                    return
+                devices.set_amp_active(signal_type in ('pcm', 'ac3'))
+        with self.toslink_lock:
+            if self.toslink_player is player:
+                devices.set_amp_active(False)
+
+    def stop_toslink_player(self):
+        with self.toslink_lock:
+            if self.toslink_player is None:
+                return
+            if self.toslink_player.poll() is None:
+                self.toslink_player.terminate()
+                try:
+                    self.toslink_player.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self.toslink_player.kill()
+                    self.toslink_player.wait()
+            self.toslink_player = None
 
     def __init_radios(self):
         instance = vlc.Instance('-A alsa')
@@ -227,6 +281,8 @@ async def ir_loop(device):
 
 def shutdown_app(signum, frame=None):
     exit_code = 0 if signum != 'restart' else 121
+    try: s.stop_toslink_player()
+    except Exception as error: print('Error when stopping TOSLINK player: ',error)
     try: s.mixer.close()
     except Exception as error: print('Error when disconnecting CamillaDSP: ',error)
     dbus_bluez.exit()

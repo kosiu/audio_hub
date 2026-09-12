@@ -1,4 +1,5 @@
-// g++ -O2 -Wall -std=c++23 -o audio_bridge audio_bridge.cpp -lasound -lavformat -lavcodec -lavutil -lswresample
+// g++ -O2 -Wall -std=c++23 -o toslink_play toslink_play.cpp -lasound -lavformat -lavcodec -lavutil -lswresample
+// sudo setcap cap_sys_nice+ep ./toslink_play
 
 extern "C" {
 #include <alsa/asoundlib.h>
@@ -10,10 +11,13 @@ extern "C" {
 #include <poll.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sched.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <cstdarg>
+#include <cerrno>
 #include <ctime>
 
 constexpr const char* CAP_DEVICE  = "hw:CARD=ICUSBAUDIO7D,DEV=0";
@@ -26,25 +30,47 @@ constexpr int CAP_PERIOD_FRAMES   = 240;   // 5ms @ 48kHz
 constexpr int CAP_BUFFER_FRAMES   = CAP_PERIOD_FRAMES * 8;
 constexpr int OUT_PERIOD_FRAMES   = CAP_PERIOD_FRAMES;
 
-// AC3 frames are always exactly 1536 samples, fixed by spec regardless of
-// bitrate. Output buffer needs to absorb one full burst write plus margin,
-// or the buffer chronically underruns right after each burst (see history).
 constexpr int AC3_FRAME_SAMPLES     = 1536;
-constexpr int OUT_BUFFER_FRAMES     = AC3_FRAME_SAMPLES * 2;   // 3072: one burst + equal margin
-constexpr int DECODE_SCRATCH_FRAMES = AC3_FRAME_SAMPLES + 512; // headroom for swr_convert scratch buffers
+constexpr int OUT_BUFFER_FRAMES     = AC3_FRAME_SAMPLES * 2;   // was *2 - more slack, ~32ms added latency
+constexpr int DECODE_SCRATCH_FRAMES = AC3_FRAME_SAMPLES + 512;
 
-constexpr int CAP_WAIT_MS         = 100;
-
-// One IEC 61937 slot at 48kHz/2ch/16bit is 6144 bytes - window must exceed
-// that so a sync word is never missed at a read boundary.
-constexpr size_t SCAN_WINDOW = 12288;
+constexpr int CAP_WAIT_MS         = 50;
+constexpr size_t SCAN_WINDOW      = 12288;
 
 constexpr int DECODER_FAIL_COOLDOWN_ITERS = 100;
-constexpr long DECODE_STALL_TIMEOUT_MS = 100;   // no decoded frame in this long -> stream genuinely stopped
-constexpr int CAP_XRUN_MAX_CONSECUTIVE = 10;    // give up on capture device after this many failed recoveries
+constexpr long DECODE_STALL_TIMEOUT_MS = 100;
+constexpr int CAP_XRUN_MAX_CONSECUTIVE = 10;
+
+constexpr long XRUN_LOG_MIN_INTERVAL_MS = 200;  // cap log spam during a burst
 
 static volatile sig_atomic_t running = 1;
 static void on_signal(int) { running = 0; }
+
+static void log_line(const char* fmt, ...) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    struct tm tm_buf;
+    localtime_r(&ts.tv_sec, &tm_buf);
+    char stamp[32];
+    strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tm_buf);
+    std::fprintf(stderr, "%s.%03ld ", stamp, ts.tv_nsec / 1000000);
+
+    va_list args;
+    va_start(args, fmt);
+    std::vfprintf(stderr, fmt, args);
+    va_end(args);
+}
+
+static void try_realtime_priority() {
+    struct sched_param sp{};
+    sp.sched_priority = 10;
+    if (sched_setscheduler(0, SCHED_FIFO, &sp) != 0) {
+        log_line("note: could not set realtime scheduling (%s) - continuing at normal priority\n",
+                 strerror(errno));
+    } else {
+        log_line("realtime scheduling enabled (SCHED_FIFO, priority %d)\n", sp.sched_priority);
+    }
+}
 
 struct State {
     enum class Status { off, none, pcm, ac3 } current{Status::off};
@@ -65,7 +91,7 @@ struct State {
 static snd_pcm_t* cap = nullptr;
 static snd_pcm_t* out = nullptr;
 
-#define SND_ERR(format) if(err < 0){fprintf(stderr,format,name,snd_strerror(err));exit(1);}
+#define SND_ERR(format) if(err < 0){log_line(format,name,snd_strerror(err));exit(1);}
 static snd_pcm_t *open_pcm(const char *name, snd_pcm_stream_t stream, unsigned int channels,
                             int period_frames, int buffer_frames) {
     snd_pcm_t *handle;
@@ -93,8 +119,8 @@ static snd_pcm_t *open_pcm(const char *name, snd_pcm_stream_t stream, unsigned i
     err = snd_pcm_hw_params(handle, hw);
     SND_ERR("set hw_params on %s failed: %s\n");
 
-    fprintf(stderr, "%s: rate=%u period=%lu buffer=%lu channels=%u\n",
-                    name, rate, period, buffer, channels);
+    log_line("%s: rate=%u period=%lu buffer=%lu channels=%u\n",
+             name, rate, period, buffer, channels);
 
     err = snd_pcm_prepare(handle);
     SND_ERR("prepare %s failed: %s\n");
@@ -109,11 +135,11 @@ static void tune_start_threshold(snd_pcm_t* handle, const char* name, snd_pcm_uf
     snd_pcm_sw_params_set_start_threshold(handle, sw, threshold);
     int err = snd_pcm_sw_params(handle, sw);
     if (err < 0) {
-        std::fprintf(stderr, "%s: sw_params start_threshold failed: %s\n", name, snd_strerror(err));
+        log_line("%s: sw_params start_threshold failed: %s\n", name, snd_strerror(err));
         return;
     }
-    std::fprintf(stderr, "%s: start_threshold=%lu frames (~%.1fms)\n",
-                 name, (unsigned long)threshold, 1000.0 * threshold / RATE);
+    log_line("%s: start_threshold=%lu frames (~%.1fms)\n",
+             name, (unsigned long)threshold, 1000.0 * threshold / RATE);
 }
 
 static void poll_stdin() {
@@ -140,7 +166,7 @@ static bool write_all(snd_pcm_t* pcm_handle, const int16_t* data, snd_pcm_sframe
             xrun_count++;
             written = snd_pcm_recover(pcm_handle, written, 1);
             if (written < 0) {
-                std::fprintf(stderr, "playback unrecoverable: %s\n", snd_strerror((int)written));
+                log_line("playback unrecoverable: %s\n", snd_strerror((int)written));
                 return false;
             }
             continue;
@@ -151,12 +177,6 @@ static bool write_all(snd_pcm_t* pcm_handle, const int16_t* data, snd_pcm_sframe
     return true;
 }
 
-// --- Bitstream sync detection (AC3 only; DTS support removed) ---
-// Still recognizes *any* valid IEC 61937 sync word, not just AC3's - a
-// recognized-but-non-AC3 burst (e.g. DTS) is reported as "other" and the
-// caller mutes rather than passing the raw compressed bytes through as if
-// they were PCM (which would produce harsh noise, same failure mode as
-// the very first problem in this project).
 enum class Sync { none, ac3, other };
 
 static uint8_t scan_buf[SCAN_WINDOW];
@@ -189,7 +209,6 @@ static Sync scan_bitstream(const uint8_t* data, size_t len) {
     return Sync::none;
 }
 
-// --- Stream Decoder ---
 static AVFormatContext* fmt_ctx = nullptr;
 static AVIOContext*     avio_ctx = nullptr;
 static AVCodecContext*  codec_ctx = nullptr;
@@ -197,10 +216,6 @@ static SwrContext*      swr_ctx = nullptr;
 static AVPacket*        dec_pkt = nullptr;
 static AVFrame*         dec_frame = nullptr;
 
-// Channel order out of the decoder already matched physical output wiring
-// on this rig, confirmed by direct listening test against this binary's
-// own output. Kept as an explicit table (not collapsed away) in case
-// wiring/routing ever changes.
 static const int CH_REMAP[OUT_CHANNELS] = {0, 1, 2, 3, 4, 5};
 
 static int avio_read_cb(void*, uint8_t* buf, int buf_size) {
@@ -233,19 +248,19 @@ static void note_decoder_failure(int& decoder_fail_streak, int& decoder_cooldown
     decoder_fail_streak++;
     if (decoder_fail_streak >= 3) {
         decoder_cooldown = DECODER_FAIL_COOLDOWN_ITERS;
-        std::fprintf(stderr, "decoder failing repeatedly, cooling down\n");
+        log_line("decoder failing repeatedly, cooling down\n");
         decoder_fail_streak = 0;
     }
 }
 
 static bool open_decoder() {
     close_decoder();
-    clock_gettime(CLOCK_MONOTONIC, &last_frame_time);   // must precede any read_cb calls
+    clock_gettime(CLOCK_MONOTONIC, &last_frame_time);
 
     constexpr int AVIO_BUF_SIZE = 4096;
     uint8_t* avio_buf = (uint8_t*)av_malloc(AVIO_BUF_SIZE);
     avio_ctx = avio_alloc_context(avio_buf, AVIO_BUF_SIZE, 0, nullptr, &avio_read_cb, nullptr, nullptr);
-    if (!avio_ctx) { std::fprintf(stderr, "avio_alloc_context failed\n"); return false; }
+    if (!avio_ctx) { log_line("avio_alloc_context failed\n"); return false; }
 
     fmt_ctx = avformat_alloc_context();
     fmt_ctx->pb = avio_ctx;
@@ -253,22 +268,22 @@ static bool open_decoder() {
     fmt_ctx->max_analyze_duration = 0;
 
     AVInputFormat* infmt = av_find_input_format("spdif");
-    if (!infmt) { std::fprintf(stderr, "spdif demuxer not available\n"); close_decoder(); return false; }
+    if (!infmt) { log_line("spdif demuxer not available\n"); close_decoder(); return false; }
 
     if (avformat_open_input(&fmt_ctx, nullptr, infmt, nullptr) < 0) {
-        std::fprintf(stderr, "avformat_open_input failed\n");
+        log_line("avformat_open_input failed\n");
         close_decoder();
         return false;
     }
 
     if (avformat_find_stream_info(fmt_ctx, nullptr) < 0) {
-        std::fprintf(stderr, "avformat_find_stream_info failed\n");
+        log_line("avformat_find_stream_info failed\n");
         close_decoder();
         return false;
     }
 
     if (fmt_ctx->nb_streams < 1) {
-        std::fprintf(stderr, "spdif: no stream found\n");
+        log_line("spdif: no stream found\n");
         close_decoder();
         return false;
     }
@@ -276,7 +291,7 @@ static bool open_decoder() {
     AVCodecParameters* params = fmt_ctx->streams[0]->codecpar;
     const AVCodec* codec = avcodec_find_decoder(params->codec_id);
     if (!codec) {
-        std::fprintf(stderr, "no decoder for codec_id=%d\n", params->codec_id);
+        log_line("no decoder for codec_id=%d\n", params->codec_id);
         close_decoder();
         return false;
     }
@@ -285,13 +300,13 @@ static bool open_decoder() {
     avcodec_parameters_to_context(codec_ctx, params);
 
     if (avcodec_open2(codec_ctx, codec, nullptr) < 0) {
-        std::fprintf(stderr, "avcodec_open2 failed\n");
+        log_line("avcodec_open2 failed\n");
         close_decoder();
         return false;
     }
 
-    std::fprintf(stderr, "decoder opened: codec_id=%d channels=%d rate=%d\n",
-                 params->codec_id, codec_ctx->channels, codec_ctx->sample_rate);
+    log_line("decoder opened: codec_id=%d channels=%d rate=%d\n",
+             params->codec_id, codec_ctx->channels, codec_ctx->sample_rate);
     return true;
 }
 
@@ -306,7 +321,7 @@ static bool decode_and_write_one(unsigned long& xrun_count, bool& produced_frame
     av_packet_unref(dec_pkt);
     if (ret < 0) {
         char eb[64]; av_strerror(ret, eb, sizeof(eb));
-        std::fprintf(stderr, "avcodec_send_packet: %s (skipping)\n", eb);
+        log_line("avcodec_send_packet: %s (skipping)\n", eb);
         return true;
     }
 
@@ -315,7 +330,7 @@ static bool decode_and_write_one(unsigned long& xrun_count, bool& produced_frame
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) break;
         if (ret < 0) {
             char eb[64]; av_strerror(ret, eb, sizeof(eb));
-            std::fprintf(stderr, "avcodec_receive_frame: %s (skipping block)\n", eb);
+            log_line("avcodec_receive_frame: %s (skipping block)\n", eb);
             break;
         }
         produced_frame = true;
@@ -329,7 +344,7 @@ static bool decode_and_write_one(unsigned long& xrun_count, bool& produced_frame
                 in_layout, (AVSampleFormat)dec_frame->format, dec_frame->sample_rate,
                 0, nullptr);
             if (!swr_ctx || swr_init(swr_ctx) < 0) {
-                std::fprintf(stderr, "swr_init failed\n");
+                log_line("swr_init failed\n");
                 return false;
             }
         }
@@ -339,7 +354,7 @@ static bool decode_and_write_one(unsigned long& xrun_count, bool& produced_frame
         int converted = swr_convert(swr_ctx, out_ptrs, DECODE_SCRATCH_FRAMES,
                                      (const uint8_t**)dec_frame->extended_data,
                                      dec_frame->nb_samples);
-        if (converted < 0) { std::fprintf(stderr, "swr_convert failed\n"); return false; }
+        if (converted < 0) { log_line("swr_convert failed\n"); return false; }
 
         static int16_t remap_buf[DECODE_SCRATCH_FRAMES * OUT_CHANNELS];
         for (int i = 0; i < converted; i++)
@@ -356,19 +371,21 @@ int main() {
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
     signal(SIGPIPE, SIG_IGN);
+    try_realtime_priority();
 
     out = open_pcm(OUT_DEVICE, SND_PCM_STREAM_PLAYBACK, OUT_CHANNELS, OUT_PERIOD_FRAMES, OUT_BUFFER_FRAMES);
     tune_start_threshold(out, OUT_DEVICE, OUT_PERIOD_FRAMES * 2);
     cap = open_pcm(CAP_DEVICE, SND_PCM_STREAM_CAPTURE, CAP_CHANNELS, CAP_PERIOD_FRAMES, CAP_BUFFER_FRAMES);
 
     int err = snd_pcm_start(cap);
-    if (err < 0) { std::fprintf(stderr, "capture start failed: %s\n", snd_strerror(err)); return 1; }
+    if (err < 0) { log_line("capture start failed: %s\n", snd_strerror(err)); return 1; }
 
     int16_t cap_buf[CAP_PERIOD_FRAMES * CAP_CHANNELS];
     int16_t out_buf[CAP_PERIOD_FRAMES * OUT_CHANNELS];
 
     unsigned long xrun_count = 0;
     unsigned long last_reported_xruns = 0;
+    struct timespec last_xrun_log_time = {0, 0};
     bool decoding = false;
     int decoder_fail_streak = 0;
     int decoder_cooldown = 0;
@@ -377,9 +394,11 @@ int main() {
     while (running) {
         poll_stdin();
 
-        if (xrun_count != last_reported_xruns) {
-            std::fprintf(stderr, "xrun_count=%lu\n", xrun_count);
+        if (xrun_count != last_reported_xruns &&
+            elapsed_ms(last_xrun_log_time) >= XRUN_LOG_MIN_INTERVAL_MS) {
+            log_line("xrun_count=%lu\n", xrun_count);
             last_reported_xruns = xrun_count;
+            clock_gettime(CLOCK_MONOTONIC, &last_xrun_log_time);
         }
 
         if (decoding) {
@@ -396,15 +415,15 @@ int main() {
 
         int ready = snd_pcm_wait(cap, CAP_WAIT_MS);
         if (ready == 0) { state.set(State::off); continue; }
-        if (ready < 0) { std::fprintf(stderr, "capture wait error: %s\n", snd_strerror(ready)); continue; }
+        if (ready < 0) { log_line("capture wait error: %s\n", snd_strerror(ready)); continue; }
 
         snd_pcm_sframes_t frames = snd_pcm_readi(cap, cap_buf, CAP_PERIOD_FRAMES);
         if (frames < 0) {
-            std::fprintf(stderr, "capture read error: %s (recovering)\n", snd_strerror((int)frames));
+            log_line("capture read error: %s (recovering)\n", snd_strerror((int)frames));
             int rec = snd_pcm_recover(cap, (int)frames, 1);
             if (rec < 0) {
                 if (++cap_xrun_streak >= CAP_XRUN_MAX_CONSECUTIVE) {
-                    std::fprintf(stderr, "capture unrecoverable after %d attempts, giving up\n", cap_xrun_streak);
+                    log_line("capture unrecoverable after %d attempts, giving up\n", cap_xrun_streak);
                     break;
                 }
             } else {
@@ -423,7 +442,7 @@ int main() {
 
         State::Status detected;
         if (sync == Sync::ac3)        detected = State::ac3;
-        else if (sync == Sync::other) detected = State::none;  // recognized non-AC3 burst - mute, don't fake-pass as PCM
+        else if (sync == Sync::other) detected = State::none;
         else                          detected = silent ? State::none : State::pcm;
         state.set(detected);
 
@@ -458,7 +477,7 @@ int main() {
         }
     }
 
-    std::fprintf(stderr, "shutting down, xrun_count=%lu\n", xrun_count);
+    log_line("shutting down, xrun_count=%lu\n", xrun_count);
     close_decoder();
     if (cap) snd_pcm_close(cap);
     if (out) snd_pcm_close(out);
