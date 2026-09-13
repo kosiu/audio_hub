@@ -7,12 +7,12 @@ devices:
     device: full_8ch
     format: S16_LE
     labels:
-    - 1 FL
-    - 1 FR
-    - 1 CT
-    - 1 LFE
-    - 1 RL
-    - 1 RR
+    - 1_FL
+    - 1_FR
+    - 1_RL
+    - 1_RR
+    - 1_CTR
+    - 1_LFE
     - 2 L
     - 2 R
     link_mute_control: null
@@ -226,11 +226,6 @@ mixers:
     - dest: 3
       mute: false
       sources:
-      - channel: 2
-        gain: 0
-        inverted: false
-        mute: null
-        scale: null
       - channel: 6
         gain: -6
         inverted: false
@@ -241,32 +236,37 @@ mixers:
         inverted: false
         mute: null
         scale: null
-    - dest: 4
-      mute: false
-      sources:
       - channel: 4
         gain: 0
         inverted: false
-        mute: null
-        scale: null
+        mute: false
+        scale: dB
+    - dest: 4
+      mute: false
+      sources:
       - channel: 6
         gain: 0
         inverted: false
-        mute: null
-        scale: null
+        mute: false
+        scale: dB
+      - channel: 2
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
     - dest: 5
       mute: false
       sources:
-      - channel: 5
-        gain: 0
-        inverted: false
-        mute: null
-        scale: null
       - channel: 7
         gain: 0
         inverted: false
-        mute: null
-        scale: null
+        mute: false
+        scale: dB
+      - channel: 3
+        gain: 0
+        inverted: false
+        mute: false
+        scale: dB
 pipeline:
 - bypassed: null
   channels: null

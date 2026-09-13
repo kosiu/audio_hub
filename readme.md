@@ -5,8 +5,8 @@
 1. The TV is the only TOSLINK source.
 2. The OrangePi has one application GPIO connection: amplifier STB on header pin
    8. `LOW` or high impedance means standby; `HIGH` enables the amplifier.
-3. PC audio will use Moonlight and Sunshine in the future. The `pc` action is a
-   placeholder today.
+3. PC audio uses Moonlight and Sunshine. The application owns a small Xvfb
+   display for Moonlight and starts the stream while the `pc` input is selected.
 4. CamillaDSP owns volume, channel routing, balancing, filtering, and the final
    six-channel output.
 5. The center and subwoofer speakers are physically swapped, so the CamillaDSP
@@ -18,6 +18,7 @@ Current pipeline:
 TV TOSLINK -> toslink_play -> Surround loopback (6ch) --+
                                                        +-> full_8ch -> CamillaDSP -> USB ALSA (6ch)
 VLC / bluealsa-aplay -> Stereo loopback (2ch) ---------+
+Moonlight PC audio -> Surround loopback (6ch) ---------+
 ```
 
 The first six channels of `full_8ch` are TV surround. The last two are local
@@ -66,5 +67,13 @@ arecord -D hw:ICUSBAUDIO7D -f S16_LE -c 2 -r 48000 -d 1 -t raw -q - | od
 ```
 
 Internet radio stream directory: http://fmstream.org/index.php
+
+## PC Stream
+
+Install `Xvfb` and Moonlight Embedded at `/usr/bin/Xvfb` and
+`/usr/local/bin/moonlight`. Audio Hub starts display `:99` when it starts and
+stops it when it exits; no `sudo` is required. Selecting `pc` runs the `Static
+Icon` Sunshine application with 5.1 audio on the `Surround` ALSA device. Logs
+are written to `/home/kosiu/xvfb.log` and `/home/kosiu/moonlight.log`.
 
 See [project.md](project.md) for the current software and hardware contracts.

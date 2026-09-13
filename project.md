@@ -6,7 +6,7 @@ Audio Hub is an OrangePi-based controller and audio processor. It combines:
 
 1. Internet radio and Bluetooth audio.
 2. TV audio received over TOSLINK.
-3. A future PC source based on Moonlight and Sunshine.
+3. A PC source based on Moonlight and Sunshine.
 4. CamillaDSP volume, routing, and speaker processing.
 5. IR remote and HTTP control.
 6. Amplifier standby control.
@@ -17,9 +17,10 @@ ALSA exposes one eight-channel capture contract named `full_8ch`:
 
 1. Channels `0..5` carry TV audio from `toslink_play` through the `Surround`
    ALSA loopback device.
-2. Channels `6..7` carry local stereo from VLC, `bluealsa-aplay`, and eventually
-   the Moonlight PC client through the `Stereo` ALSA loopback device.
-3. CamillaDSP consumes `full_8ch` and produces the six physical speaker outputs.
+2. Channels `6..7` carry local stereo from VLC and `bluealsa-aplay` through the
+   `Stereo` ALSA loopback device.
+3. Moonlight sends PC 5.1 audio through the `Surround` ALSA loopback device.
+4. CamillaDSP consumes `full_8ch` and produces the six physical speaker outputs.
 
 The TV is the only TOSLINK device. `toslink_play` reads the optical capture
 device, detects the transport, decodes AC-3 when needed, expands PCM stereo to
@@ -33,7 +34,7 @@ six channels, and writes to `Surround`.
 | --- | --- |
 | Radio index | Stop `toslink_play`, enable the amplifier, and play the selected VLC stream. |
 | `bt` | Stop VLC and `toslink_play`, enable the amplifier, and use the local Bluetooth path. |
-| `pc` | Stop VLC and `toslink_play`, enable the amplifier, and reserve the local path for a future Moonlight client. |
+| `pc` | Stop VLC and `toslink_play`, start the Moonlight PC stream through `Surround`, and enable the amplifier. |
 | `tv` | Stop VLC, put the amplifier in standby, and start `toslink_play`. Its reported signal state then controls STB. |
 | `off` | Stop VLC and `toslink_play`, then put the amplifier in standby. |
 | `pair` | Temporarily enable Bluetooth pairing. |
@@ -100,8 +101,10 @@ The HTTP API remains intentionally small:
 3. `/set` changes action or volume.
 4. `/update` streams state changes using SSE.
 
-## Next PC Step
+## PC Stream
 
-The `pc` action is currently a placeholder. Its future implementation should
-start and stop a Moonlight client in the same way that the `tv` action owns
-`toslink_play`, while continuing to feed the local stereo ALSA path.
+`audio_hub.py` starts Xvfb on display `:99` during application startup and stops
+it during shutdown. Selecting `pc` starts Moonlight at 128x128, 2 FPS with H.264
+video and 5.1 audio sent to the `Surround` ALSA device. Selecting any other
+source stops Moonlight. Runtime diagnostics are appended to
+`/home/kosiu/xvfb.log` and `/home/kosiu/moonlight.log`.

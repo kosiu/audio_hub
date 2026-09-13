@@ -34,7 +34,7 @@ constexpr int AC3_FRAME_SAMPLES     = 1536;
 constexpr int OUT_BUFFER_FRAMES     = AC3_FRAME_SAMPLES * 2;   // was *2 - more slack, ~32ms added latency
 constexpr int DECODE_SCRATCH_FRAMES = AC3_FRAME_SAMPLES + 512;
 
-constexpr int CAP_WAIT_MS         = 50;
+constexpr int CAP_WAIT_MS         = 30;
 constexpr size_t SCAN_WINDOW      = 12288;
 
 constexpr int DECODER_FAIL_COOLDOWN_ITERS = 100;
@@ -396,7 +396,7 @@ int main() {
 
         if (xrun_count != last_reported_xruns &&
             elapsed_ms(last_xrun_log_time) >= XRUN_LOG_MIN_INTERVAL_MS) {
-            log_line("xrun_count=%lu\n", xrun_count);
+            //log_line("xrun_count=%lu\n", xrun_count);
             last_reported_xruns = xrun_count;
             clock_gettime(CLOCK_MONOTONIC, &last_xrun_log_time);
         }
@@ -415,7 +415,7 @@ int main() {
 
         int ready = snd_pcm_wait(cap, CAP_WAIT_MS);
         if (ready == 0) { state.set(State::off); continue; }
-        if (ready < 0) { log_line("capture wait error: %s\n", snd_strerror(ready)); continue; }
+        if (ready < 0) { log_line("capture wait error: %s\n", snd_strerror(ready)); exit(1); }
 
         snd_pcm_sframes_t frames = snd_pcm_readi(cap, cap_buf, CAP_PERIOD_FRAMES);
         if (frames < 0) {
@@ -474,7 +474,7 @@ int main() {
         } else {
             std::memset(out_buf, 0, sizeof(out_buf));
             write_all(out, out_buf, frames, OUT_CHANNELS, xrun_count);
-        }
+        }   
     }
 
     log_line("shutting down, xrun_count=%lu\n", xrun_count);

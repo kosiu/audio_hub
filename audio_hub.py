@@ -12,6 +12,14 @@ CAMILLA_MIN_DB = -60.0
 CAMILLA_MAX_DB = 0.0
 TOSLINK_PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'toslink_play')
 TOSLINK_LOG = '/home/kosiu/toslink_play.log'
+XVFB_COMMAND = ['/usr/bin/Xvfb', ':99', '-screen', '0', '128x128x24', '-nolisten', 'tcp']
+XVFB_LOG = '/home/kosiu/xvfb.log'
+MOONLIGHT_COMMAND = [
+    '/usr/local/bin/moonlight', 'stream', '-app', 'Static Icon',
+    '-audio', 'Surround', '-surround', '5.1', '-width', '128', '-height', '128',
+    '-fps', '2', '-bitrate', '500', '-codec', 'h264', '-unsupported', '192.168.1.20'
+]
+MOONLIGHT_LOG = '/home/kosiu/moonlight.log'
 INPUTS = ('bt', 'pc', 'tv', 'off')
 
 class CamillaMixer:
@@ -85,10 +93,14 @@ class State:
         self.mixer     = CamillaMixer()
         self.toslink_player = None
         self.toslink_lock = threading.Lock()
+        self.xvfb = None
+        self.moonlight = None
+        self.moonlight_lock = threading.Lock()
         self.update_ui = asyncio.Event()
         self.red_led   = devices.System_Led('red',  'trigger','mmc0')
         self.green_led = devices.System_Led('green','trigger','rc-feedback')
         devices.init()
+        self.__start_xvfb()
         http_server.run_thread(self)
 
     async def loop(self):
@@ -122,6 +134,7 @@ class State:
 
     def __set_radio(self, channel):
         self.stop_toslink_player()
+        self.stop_moonlight()
         devices.set_amp_active(True)
         self.player.play_item_at_index(channel)
         self.input = channel
@@ -130,13 +143,77 @@ class State:
     def __set_input(self, source):
         self.player.stop()
         if source == 'tv':
+            self.stop_moonlight()
             devices.set_amp_active(False)
             self.__start_toslink_player()
+        elif source == 'pc':
+            self.stop_toslink_player()
+            if self.__start_moonlight():
+                devices.set_amp_active(True)
+            else:
+                source = 'off'
+                devices.set_amp_active(False)
         else:
             self.stop_toslink_player()
+            self.stop_moonlight()
             devices.set_amp_active(source != 'off')
         self.input = source
         self.update_ui.set()
+
+    def __start_xvfb(self):
+        with open(XVFB_LOG, 'a') as log_file:
+            self.xvfb = subprocess.Popen(XVFB_COMMAND, stdout=log_file, stderr=subprocess.STDOUT)
+        display_socket = '/tmp/.X11-unix/X99'
+        for _ in range(20):
+            if self.xvfb.poll() is not None:
+                raise RuntimeError(f'Xvfb exited with code {self.xvfb.returncode}; see {XVFB_LOG}')
+            if os.path.exists(display_socket):
+                return
+            time.sleep(.05)
+        self.stop_xvfb()
+        raise RuntimeError(f'Xvfb did not create {display_socket}; see {XVFB_LOG}')
+
+    def __start_moonlight(self):
+        with self.moonlight_lock:
+            if self.moonlight is not None and self.moonlight.poll() is None:
+                return True
+            environment = os.environ.copy()
+            environment['DISPLAY'] = ':99'
+            try:
+                with open(MOONLIGHT_LOG, 'a') as log_file:
+                    self.moonlight = subprocess.Popen(
+                        MOONLIGHT_COMMAND, stdout=log_file, stderr=subprocess.STDOUT,
+                        env=environment)
+                time.sleep(.1)
+                if self.moonlight.poll() is not None:
+                    print(f'Moonlight exited with code {self.moonlight.returncode}; see {MOONLIGHT_LOG}')
+                    self.moonlight = None
+                    return False
+            except OSError as error:
+                print(f'Unable to start Moonlight: {error}')
+                self.moonlight = None
+                return False
+            return True
+
+    def stop_moonlight(self):
+        with self.moonlight_lock:
+            self.moonlight = self.__stop_process(self.moonlight)
+
+    def stop_xvfb(self):
+        self.xvfb = self.__stop_process(self.xvfb)
+
+    @staticmethod
+    def __stop_process(process):
+        if process is None:
+            return None
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        return None
 
     def __start_toslink_player(self):
         with self.toslink_lock:
@@ -281,6 +358,8 @@ async def ir_loop(device):
 
 def shutdown_app(signum, frame=None):
     exit_code = 0 if signum != 'restart' else 121
+    try: s.stop_moonlight()
+    except Exception as error: print('Error when stopping Moonlight: ',error)
     try: s.stop_toslink_player()
     except Exception as error: print('Error when stopping TOSLINK player: ',error)
     try: s.mixer.close()
@@ -288,6 +367,8 @@ def shutdown_app(signum, frame=None):
     dbus_bluez.exit()
     try: devices.end()
     except OSError as error: print('Error when stopping GPIO: ',error)
+    try: s.stop_xvfb()
+    except Exception as error: print('Error when stopping Xvfb: ',error)
     os._exit(exit_code)
 
 if __name__ == '__main__':
