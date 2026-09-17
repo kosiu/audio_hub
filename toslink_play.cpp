@@ -22,6 +22,18 @@ constexpr int CAP_CHANNELS = 2;
 constexpr int OUT_CHANNELS = 6;
 constexpr int CH_REMAP[OUT_CHANNELS] = {0, 1, 4, 5, 2, 3};
 
+struct Amplifier {
+    bool standby_state = false;
+    ~Amplifier() { stb(true);}
+    void stb(bool standby) {
+        if (standby_state == standby) return;
+        if(standby) std::fputs("off\n", stdout);
+        else        std::fputs("on\n",  stdout);
+        std::fflush(stdout);
+        standby_state = standby;
+    }
+} amplifier;
+
 static void log_line(const char* fmt, ...) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -47,22 +59,6 @@ static bool check_stdin() {
     }
     return true;
 }
-
-struct State {
-    enum class Status { off, none, pcm, ac3 } current{Status::off};
-    using enum Status;
-    [[nodiscard]] constexpr const char* str() const {
-        switch (current) {
-            case off:  return "off";
-            case none: return "none";
-            case pcm:  return "pcm";
-            case ac3:  return "ac3";
-        }
-        __builtin_unreachable();
-    }
-    void print() const { std::fputs(str(), stdout); std::fputc('\n', stdout); std::fflush(stdout); }
-    void set(Status s) { if (s != current) { current = s; print(); } }
-} state;
 
 struct Device {
     const char* name;              // device name
@@ -144,34 +140,47 @@ Device out("Surround", SND_PCM_STREAM_PLAYBACK, 6, 240, AC3_FRAME_SAMPLES * 2);
 int main() {
     snd_pcm_reset(cap.id); // to have clean buffer (reduce delay)
 
-    
+    long preamble_index = -ENODATA; // index of preamble of IEC 61937
     while (check_stdin()) {
         long accumulated_index = 0; // index into the captured buffer (in samples, not frames)
-        long preamble_index = -1;   // index of preamble of IEC 61937
-        bool silent = true;         // whether the captured audio is filled with zeros
-        int ready = 0;              // result of snd_pcm_wait()
-        while(accumulated_index < (AC3_FRAME_SAMPLES + cap.period_frames) * CAP_CHANNELS) {
+        bool zeros = true;         // whether the captured audio is filled with zeros
+        long to_capture = (AC3_FRAME_SAMPLES + cap.period_frames) * CAP_CHANNELS;
+        enum class State { off, pcm, ac3, unknown } state = State::pcm;
+        while(accumulated_index < to_capture) { // Capture loop
             long new_frames = 0;
-            ready = snd_pcm_wait(cap.id, CAP_WAIT_MS);
-            if (ready < 0)  { log_line("capture wait error: %s\n", snd_strerror(ready)); exit(1); } // xrun is recoverable
-            if (ready > 0) new_frames = 
-                            snd_pcm_readi(cap.id, &cap.buf[accumulated_index], cap.period_frames);
+            int ready = snd_pcm_wait(cap.id, CAP_WAIT_MS);
+            if (ready < 0) {log_line("capture wait error: %s\n", snd_strerror(ready)); exit(1); } // TODO xrun or suspended for me it should be recoverable or not?
+            if (ready > 0) new_frames = snd_pcm_readi(cap.id, &cap.buf[accumulated_index], cap.period_frames);
+            if (ready == 0) {amplifier.stb(true); state = State::off; } // TODO drop out pcm
             accumulated_index += new_frames * CAP_CHANNELS;
 
+            if (preamble_index == 0) {                         // Start of IEC 61937 preamble
+                if ((uint16_t)cap.buf[2] & 0x001f == 0x0001) { // is it AC3?
+                    to_capture = (uint16_t)cap.buf[3] / 8;
+                    state = State::ac3;
+                } else {
+                    to_capture = (AC3_FRAME_SAMPLES + cap.period_frames) * CAP_CHANNELS;
+                    state = State::unknown;
+                }
+                preamble_index = -ENODATA;
+                continue; // no need to search zeros or preamble in this iteration
+            }
             for (long i = 0; i + 2 <= new_frames * CAP_CHANNELS; i += 2) {
-                if (cap.buf[i] != 0 || cap.buf[i+1] != 0) silent = false;
+                if (cap.buf[i] != 0 || cap.buf[i+1] != 0) zeros = false;
                 if (cap.buf[i] == (int16_t)0xf872 && (int16_t)cap.buf[i+1] == 0x4e1f) {
                     preamble_index = i;
                     break;
                 }
             }
         }
-        if      (preamble_index != -1) state.set(State::ac3);
-        else if (silent)               state.set(State::none);
-        else if (ready == 0)           state.set(State::off);
-        else                           state.set(State::pcm);
+        if(!zeros && state != State::off && state != State::unknown) {
+            amplifier.stb(true);
+            state = State::pcm;
+        } else amplifier.stb(false);
 
-        if (state.current == State::pcm) {
+        size_t to_write = accumulated_index-(preamble_index > 0 ? preamble_index : 0);
+        if (state == State::ac3) to_write = decode_ac3_frame();
+        else if (state == State::pcm) {
             for (long i = 0; i < accumulated_index / CAP_CHANNELS; i++) {
                 int16_t l = cap.buf[i * CAP_CHANNELS + 0];
                 int16_t r = cap.buf[i * CAP_CHANNELS + 1];
@@ -183,9 +192,15 @@ int main() {
                 out.buf[i * OUT_CHANNELS + 5] = 0;
             }
         } else {
-            std::fill(out.buf.begin(), out.buf.end(), 0);
+            std::fill(out.buf.begin(), out.buf.begin() + to_write, 0);
         }
-        out.write_all(accumulated_index);
+        out.write_all(to_write);  // play up to the preamble
+        if (preamble_index > 0) { // move remaininge data to the beginning of the buffer
+            long remaining = accumulated_index - preamble_index;
+            std::memmove(cap.buf.data(), &cap.buf[preamble_index], remaining * sizeof(int16_t));
+            accumulated_index = remaining;
+            preamble_index = 0;
+        }
     }
 
     log_line("shutting down");
