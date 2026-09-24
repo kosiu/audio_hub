@@ -77,3 +77,40 @@ Icon` Sunshine application with 5.1 audio on the `Surround` ALSA device. Logs
 are written to `/home/kosiu/xvfb.log` and `/home/kosiu/moonlight.log`.
 
 See [project.md](project.md) for the current software and hardware contracts.
+
+~~~
+grep apt ~/.zsh_history 
+ir-keytable
+v4l-utils
+vlc
+vlc-bin
+vlc-data
+vlc-bin
+vlc-plugin-base
+build-essential
+python-dev
+python3-dev
+libasound2-dev
+bluez-alsa-utils
+cloc
+tree
+ffmpeg
+roc-toolkit-tools\
+libavformat-dev
+libavcodec-dev
+libavutil-dev
+libswresample-dev
+libevdev
+libevdev2
+libevdev-dev
+libudev-dev
+libudev1
+libcurl4
+curl
+libcurl4
+libcurl4-gnutls-dev
+libavahi-client-dev
+libsdl2-dev
+libfmt-dev
+libgpiod-dev
+~~~
