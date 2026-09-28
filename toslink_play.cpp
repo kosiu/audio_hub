@@ -1,7 +1,8 @@
-// TODO: logic of amplifier can be reviewed/simplified the moment we introduce a state exposure
-// BUG: from zeros to PCM sometimes can't switch, I'm not sure if it's The same with PCM
-// reminder sound speed: 3 ms/m for delay in rear speakers (if I want to implement)
 // g++ -O3 -Wall -std=c++23 -o toslink_play toslink_play.cpp -lasound -lavcodec -lavutil -lswresample
+// reminder sound speed: 3 ms/m for delay in rear speakers (if I want to implement)
+// TODO what I don't like:
+// - first scan loop and logic with continue statements can be confusing
+// - double scan for zeros in the end of main: rmove functions: set_from_samples and has_nonzero_samples
 extern "C" {
 #include <alsa/asoundlib.h>
 #include <libavcodec/avcodec.h>
@@ -11,45 +12,51 @@ extern "C" {
 using std::vector, std::min, std::max, std::swap_ranges;
 
 constexpr int AC3_BURST = 1536; // samples per AC3 burst period, 32ms @ 48kHz (main unit for sync)
-constexpr int sz16 = sizeof(int16_t);
-constexpr int CH2 = 2;
-constexpr int CH6 = 6;
+constexpr int CH2 = 2, CH6 = 6, sz16 = sizeof(int16_t);
+
+static bool has_nonzero_samples(const int16_t* samples, long count) { // TODO: should be in main run once
+    while (count-- > 0) if (*samples++) return true;
+    return false;
+}
+
+struct Status { // Handling the current audio status and state transitions
+    enum class State {off, none, pcm, ac3, other} current = off;
+    using enum State;
+    const char* state_name() { switch (current) {
+        case off:   return "off";   // No light in fiber (timeout during read)
+        case none:  return "none";  // Data fielled with zeros (TV on but no audio output)
+        case pcm:   return "pcm";   // Stereo (uncompressed audio)
+        case ac3:   return "ac3";   // Dolby Digital AC-3 codec
+        case other: return "other"; // unknown or other codec
+    }; __builtin_unreachable(); }
+    void print() {puts(state_name()); putchar('\n'); fflush(stdout);}
+    void set(State state) {if (state != current) {current = state; print();}}
+} status;
 
 struct Amplifier { // controls the amplifier's standby state through GPIO 354 (pin 8 on header)
     FILE* stb_file = fopen("/sys/class/gpio/gpio354/value", "w");
-    static constexpr long MUTE_BURSTS   = 60; // ~2s of digital silence before standby (amp stays cool)
-    static constexpr long UNMUTE_BURSTS = 3;  // ~100ms of real audio before leaving standby (unmute late)
-    long quiet_bursts = MUTE_BURSTS;          // how many consecutive silent bursts have been observed
-    long loud_bursts  = 0;                    // how many consecutive loud bursts have been observed
-    bool standby_state = true;                // start muted and say so before any sound can reach the speakers
+    bool standby_state = true; // start muted and say so before any sound can reach the speakers
     Amplifier() { write(); }
     ~Amplifier() { stb_set(true); fclose(stb_file); }
     void write() {fputc(standby_state ? '0' : '1', stb_file); fflush(stb_file);}
     void stb_set(bool standby) { if (standby_state != standby) {standby_state = standby; write();} }
-    void mute() { stb_set(true); quiet_bursts = MUTE_BURSTS; loud_bursts = 0;}
-    void observe(const int16_t* samples, long count) { // scanning for non-zero samples to control amplifier
-        while (count-- > 0) if (*samples++) {          // found a non-zero sample, consider it a loud burst
-            quiet_bursts = 0;
-            if (++loud_bursts >= UNMUTE_BURSTS) stb_set(false);
-            return;
-        }                                              // all samples were zero, consider it a quiet burst
-        loud_bursts = 0;
-        if (++quiet_bursts >= MUTE_BURSTS) stb_set(true);
+    void set_from_samples(const int16_t* samples, long count) { // unmute for any non-zero output burst // TODO: move to main run once
+        stb_set(!has_nonzero_samples(samples, count));
     }
 } amplifier;
 
-static bool check_stdin() {
+static bool check_stdin() { // print status, exit if 'q' is pressed
     struct pollfd pfd{ STDIN_FILENO, POLLIN, 0 };
     if (poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN)) {
         char buf[64];
         ssize_t n = read(STDIN_FILENO, buf, sizeof(buf));
         if (n > 0 && buf[0] == 'q') return false;
-        amplifier.write();
+        status.print();
     }
     return true;
 }
 
-static void info(int error, const char* fmt, ...) {
+static void info(int error, const char* fmt, ...) { // logging function with timestamp and error handling
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     struct tm tm_buf;
@@ -65,7 +72,7 @@ static void info(int error, const char* fmt, ...) {
     if (error < 0 && error > -126) exit(-error);
 }
 
-struct AlsaDevice {
+struct AlsaDevice { // Input Output device wrapper for PCM ALSA
     const char* name;            // device name
     unsigned long period_frames; // number of frames per period
     unsigned long buffer_frames; // total number of frames in the buffer
@@ -132,10 +139,10 @@ struct AlsaDevice {
     }
 };
 
-AlsaDevice cap("hw:CARD=ICUSBAUDIO7D,DEV=0", true,  240/*~5ms*/, AC3_BURST * 2);
-AlsaDevice out("Surround",                   false, AC3_BURST,   AC3_BURST * 2);
+AlsaDevice cap("hw:CARD=ICUSBAUDIO7D,DEV=0", true,  240/*~5ms*/, AC3_BURST * 2); // toslink capture
+AlsaDevice out("Surround",                   false, AC3_BURST,   AC3_BURST * 2); // surround output
 
-void upmix(long frames) {
+void upmix(long frames) { // Upmix stereo input to 5.1 surround output
         for (long i = 0; i < frames; i++) {
         int16_t l = cap.buf[i * CH2 + 0];
         int16_t r = cap.buf[i * CH2 + 1];
@@ -148,7 +155,7 @@ void upmix(long frames) {
     }
 }
 
-struct Ac3Decoder {
+struct Ac3Decoder { // FFMPEG AC-3 decoder with resampling to 5.1 S16 format
     AVCodecContext* codec = nullptr;
     SwrContext*       swr = nullptr;
     AVPacket*      packet = nullptr;
@@ -200,13 +207,12 @@ struct Ac3Decoder {
 int main() {
     snd_pcm_reset(cap.id);    // to have clean buffer (reduce delay)
     long have  = 0;           // samples carried from a capture read that crossed a burst boundary
-    enum class State {none, pcm, ac3, other} mode = State::none; // none=no light, other=unknown codec 
 
     while (check_stdin()) {
         constexpr long burst_samples = AC3_BURST * CH2;
-        long target   = burst_samples;
-        long preamble = -1;             // position of the AC-3 preamble in the capture buffer
-        State state   = State::pcm;
+        long target   = burst_samples; // might be shorten by the actual AC-3 payload size
+        long preamble = -1;            // position of the AC-3 preamble in the capture buffer
+        auto state = Status::pcm;      // default later modified based on detected preamble
 
         auto scan = [&](long from, long to) {
             for (long i = from; preamble < 0 && i + 4 <= to; i += 2) {
@@ -217,35 +223,34 @@ int main() {
                     i + burst_samples > (long)cap.buf.size()) continue;  // ensure we have enough samples for a full burst
                 preamble = i;
                 target   = i + words; // ensure enough samples for the full IEC-61937 payload
-                state    = ((uint16_t)cap.buf[i + 2] & 0x7f) == 1 ? State::ac3 : State::other;
+                state    = ((uint16_t)cap.buf[i + 2] & 0x7f) == 1 ? Status::ac3 : Status::other;
             }
         };
 
         scan(0, have); // the previous read may already contain the next burst's preamble
         while (have < target) {
             long n = cap.read_wait(have);
-            if (n == -1) {amplifier.mute(); mode = State::none; have = 0;} // no light (signal)
-            if (n <=  0) continue;                                         // nothing read, try again
-
+            if (n == -1) { status.set(Status::off); amplifier.stb_set(true); have = 0; } // no light (signal)
+            if (n <=  0) { check_stdin(); continue; } // nothing read, try again // TODO: I don't like this part somehow confusing
             long from = max(0L, have - 2);
             have += n * CH2;
             scan(from, have);
         }
         
-        if (state != mode) { amplifier.mute(); mode = state; }
         constexpr int frame_size = AC3_BURST * CH6 * sz16;
-        if (state == State::pcm) upmix(AC3_BURST);
-        else if (state == State::ac3) {
+        if (state == Status::pcm) upmix(AC3_BURST);
+        else if (state == Status::ac3) {
             int decoded = ac3_decoder.decode((uint8_t*)(cap.buf.data() + preamble + 4),
                                              (uint16_t)cap.buf[preamble + 3] / 8);
-            if (decoded != AC3_BURST) {amplifier.mute(); memset(out.buf.data(), 0, frame_size);}
+            if (decoded != AC3_BURST) memset(out.buf.data(), 0, frame_size);
             else for (int i = 0; i < AC3_BURST; i++) { // ffmpeg speaker order -> "Surround" order
                 int16_t* s = out.buf.data() + i * CH6;
-                swap_ranges(s + 2, s + 4, s + 4); // FC/LFE <-> BL/BR
+                swap_ranges(s + 2, s + 4, s + 4);      // FC/LFE <-> BL/BR
             }
         } else memset(out.buf.data(), 0, frame_size);  // DTS & friends: never send raw data to speakers
 
-        amplifier.observe(out.buf.data(), AC3_BURST * CH6);
+        status.set(has_nonzero_samples(out.buf.data(), AC3_BURST * CH6) ? state : Status::none); // TODO: double scan better to inline?
+        amplifier.set_from_samples(out.buf.data(), AC3_BURST * CH6);                             // TODO: double scan better to inline?
         out.write_all(AC3_BURST);
         have -= target;
         if (have > 0) memmove(cap.buf.data(), &cap.buf[target], have * sz16);
