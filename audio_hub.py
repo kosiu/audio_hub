@@ -15,7 +15,7 @@ TOSLINK_LOG = '/home/kosiu/toslink_play.log'
 XVFB_COMMAND = ['/usr/bin/Xvfb', ':99', '-screen', '0', '128x128x24', '-nolisten', 'tcp']
 XVFB_LOG = '/home/kosiu/xvfb.log'
 MOONLIGHT_COMMAND = [
-    '/usr/local/bin/moonlight', 'stream', '-app', 'Static Icon',
+    '/usr/local/bin/moonlight', 'stream', '-app', 'audio',
     '-audio', 'Surround', '-surround', '5.1', '-width', '128', '-height', '128',
     '-fps', '2', '-bitrate', '500', '-codec', 'h264', '-unsupported', '192.168.1.20'
 ]
@@ -235,12 +235,12 @@ class State:
         for line in player.stdout:
             signal_type = line.strip()
             print(f'TOSLINK signal: {signal_type}')
-            if signal_type not in ('off', 'none', 'pcm', 'ac3'):
+            if signal_type not in ('on','off'):
                 continue
             with self.toslink_lock:
                 if self.toslink_player is not player:
                     return
-                devices.set_amp_active(signal_type in ('pcm', 'ac3'))
+                devices.set_amp_active(signal_type in ('on',))
         with self.toslink_lock:
             if self.toslink_player is player:
                 devices.set_amp_active(False)
