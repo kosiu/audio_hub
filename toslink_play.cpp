@@ -1,7 +1,5 @@
 // g++ -O3 -Wall -std=c++23 -o toslink_play toslink_play.cpp -lasound -lavcodec -lavutil -lswresample
 // reminder sound speed: 3 ms/m for delay in rear speakers (if I want to implement)
-// From off to other state I think need something more is needed for now can't recover -14 (Bad address)
-// is shown. I think need to be suspend and start? when wait shows ok?
 extern "C" {
 #include <alsa/asoundlib.h>           // Alsa library for audio device handling
 #include <libavcodec/avcodec.h>       // FFmpeg: codec library for decoding audio streams
@@ -138,10 +136,10 @@ struct AlsaDevice { // Input Output device wrapper for PCM ALSA
 AlsaDevice cap("hw:CARD=ICUSBAUDIO7D,DEV=0", true,  240/*~5ms*/, AC3_BURST * 2); // toslink capture
 AlsaDevice out("Surround",                   false, AC3_BURST,   AC3_BURST * 2); // surround output
 
-void upmix(long frames) { // Upmix stereo input to 5.1 surround output
+void upmix(long frames, bool capture) { // Upmix stereo input to 5.1 surround output
         for (long i = 0; i < frames; i++) {
-        int16_t l = cap.buf[i * CH2 + 0];
-        int16_t r = cap.buf[i * CH2 + 1];
+        int16_t l = capture ? cap.buf[i * CH2 + 0] : out.buf[i * CH6 + 0];
+        int16_t r = capture ? cap.buf[i * CH2 + 1] : out.buf[i * CH6 + 1];
         out.buf[i * CH6 + 0] = (uint16_t) l;
         out.buf[i * CH6 + 1] = (uint16_t) r;
         out.buf[i * CH6 + 2] = (uint16_t) l;
@@ -156,6 +154,9 @@ struct Ac3Decoder { // FFMPEG AC-3 decoder with resampling to 5.1 S16 format
     SwrContext*       swr = nullptr;
     AVPacket*      packet = nullptr;
     AVFrame*        frame = nullptr;
+    int64_t    swr_layout = 0;
+    int          swr_rate = 0;
+    AVSampleFormat swr_format = AV_SAMPLE_FMT_NONE;
     ~Ac3Decoder() {
         swr_free(&swr);
         av_frame_free(&frame);
@@ -185,12 +186,19 @@ struct Ac3Decoder { // FFMPEG AC-3 decoder with resampling to 5.1 S16 format
             char error[64]; av_strerror(ret, error, sizeof(error));
             info(-1, "AC-3 decode failed: %s", error);
         }
-        if (!swr) {
-            int64_t input_layout = frame->channel_layout ? frame->channel_layout :
-                av_get_default_channel_layout(frame->channels);
+        int64_t input_layout = frame->channel_layout ? frame->channel_layout :
+            av_get_default_channel_layout(frame->channels);
+        AVSampleFormat input_format = (AVSampleFormat)frame->format;
+        if (!swr || input_layout != swr_layout || input_format != swr_format ||
+                frame->sample_rate != swr_rate) {
+            swr_free(&swr);
             swr = swr_alloc_set_opts(nullptr, AV_CH_LAYOUT_5POINT1, AV_SAMPLE_FMT_S16, frame->sample_rate,
-                input_layout, (AVSampleFormat)frame->format, frame->sample_rate, 0, nullptr);
+                input_layout, input_format, frame->sample_rate, 0, nullptr);
             if (!swr || swr_init(swr) < 0) info(-1, "could not initialize AC-3 resampler");
+            swr_layout = input_layout;
+            swr_format = input_format;
+            swr_rate = frame->sample_rate;
+            info(0, "AC3: layout=0x%llX, format=%d, rate=%d", swr_layout, swr_format, swr_rate);
         }
         uint8_t* output = (uint8_t*)out.buf.data();
         int converted = swr_convert(swr, &output, AC3_BURST,
@@ -238,11 +246,12 @@ int main() {
         // end of burst state detection
 
         // Action related to state
-        if (state == Status::pcm) upmix(AC3_BURST);
+        if (state == Status::pcm) upmix(AC3_BURST, true);
         else if (state == Status::ac3) {
             int decoded = ac3_decoder.decode(&cap.buf[preamble + 4], cap.buf[preamble + 3]/8);
             constexpr int frame_size = AC3_BURST * CH6 * sz16;
             if (decoded != AC3_BURST) memset(out.buf.data(), 0, frame_size);
+            else if (ac3_decoder.swr_layout == 3) upmix(AC3_BURST, false);
             else for (int i = 0; i < AC3_BURST; i++) { // ffmpeg speaker order -> "Surround" order
                 uint16_t* s = out.buf.data() + i * CH6;
                 swap_ranges(s + 2, s + 4, s + 4);      // FC/LFE <-> BL/BR
@@ -253,6 +262,7 @@ int main() {
         }
         out.write_all(AC3_BURST);
         have -= target;
+        have = max(0L, have);
         if (have > 0) memmove(cap.buf.data(), &cap.buf[target], have * sz16);
     }
     info(0, "shutting down");
