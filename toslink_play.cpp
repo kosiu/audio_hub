@@ -1,4 +1,6 @@
-// reminder sound speed: 3 ms/m
+// TODO: logic of amplifier can be reviewed/simplified the moment we introduce a state exposure
+// BUG: from zeros to PCM sometimes can't switch, I'm not sure if it's The same with PCM
+// reminder sound speed: 3 ms/m for delay in rear speakers (if I want to implement)
 // g++ -O3 -Wall -std=c++23 -o toslink_play toslink_play.cpp -lasound -lavcodec -lavutil -lswresample
 extern "C" {
 #include <alsa/asoundlib.h>
@@ -13,15 +15,15 @@ constexpr int sz16 = sizeof(int16_t);
 constexpr int CH2 = 2;
 constexpr int CH6 = 6;
 
-struct Amplifier { // controls the amplifier's standby state
+struct Amplifier { // controls the amplifier's standby state through GPIO 354 (pin 8 on header)
+    FILE* stb_file = fopen("/sys/class/gpio/gpio354/value", "w");
     static constexpr long MUTE_BURSTS   = 60; // ~2s of digital silence before standby (amp stays cool)
     static constexpr long UNMUTE_BURSTS = 3;  // ~100ms of real audio before leaving standby (unmute late)
     long quiet_bursts = MUTE_BURSTS;          // how many consecutive silent bursts have been observed
     long loud_bursts  = 0;                    // how many consecutive loud bursts have been observed
     bool standby_state = true;                // start muted and say so before any sound can reach the speakers
-    FILE* stb_file = fopen("/sys/class/gpio/gpio354/value", "w");
     Amplifier() { write(); }
-    ~Amplifier() { stb_set(true); }
+    ~Amplifier() { stb_set(true); fclose(stb_file); }
     void write() {fputc(standby_state ? '0' : '1', stb_file); fflush(stb_file);}
     void stb_set(bool standby) { if (standby_state != standby) {standby_state = standby; write();} }
     void mute() { stb_set(true); quiet_bursts = MUTE_BURSTS; loud_bursts = 0;}
@@ -64,12 +66,12 @@ static void info(int error, const char* fmt, ...) {
 }
 
 struct AlsaDevice {
-    const char* name;              // device name
-    unsigned long period_frames;   // number of frames per period
-    unsigned long buffer_frames;   // total number of frames in the buffer
-    unsigned int rate = 48000;     // sample rate for the device (will be modified by Alsa)
-    snd_pcm_t* id = nullptr;       // ALSA PCM handle
-    std::vector<int16_t> buf{};    // audio buffer for the device
+    const char* name;            // device name
+    unsigned long period_frames; // number of frames per period
+    unsigned long buffer_frames; // total number of frames in the buffer
+    unsigned int rate = 48000;   // sample rate for the device (will be modified by Alsa)
+    snd_pcm_t* id = nullptr;     // ALSA PCM handle
+    std::vector<int16_t> buf{};  // audio buffer for the device
     void write_all(snd_pcm_sframes_t frames) {
         int16_t* write_at = buf.data(); // write cursor
         while (frames > 0) {
@@ -214,7 +216,7 @@ int main() {
                 if (words < 2 || i + 4 + words > (long)cap.buf.size() || // ensure the payload fits in the buffer
                     i + burst_samples > (long)cap.buf.size()) continue;  // ensure we have enough samples for a full burst
                 preamble = i;
-                target   = i + burst_samples;
+                target   = i + words; // ensure enough samples for the full IEC-61937 payload
                 state    = ((uint16_t)cap.buf[i + 2] & 0x7f) == 1 ? State::ac3 : State::other;
             }
         };
